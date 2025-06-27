@@ -1,0 +1,28 @@
+name: agio_broker
+version: 0.0.1
+label: agio Message Broker
+description: |
+  Message broker for localhost
+icon: 'core/agio-logo.png'
+
+urls:
+  home_page: ""
+  documentation: ""
+  bug_tracker: ""
+
+#dependencies: ["psutil"]
+agio_dependencies: ["agio_core"]
+
+repository_api: gitea
+
+plugins:
+  # commands
+  - label:
+    implementations:
+      - module: plugins/services/broker_service.py
+
+#settings:
+#  local:
+#    model: package_settings.local_settings.DesktopSettings
+#    layout: package_settings/local_layout.yml
+
