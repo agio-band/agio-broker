@@ -16,8 +16,8 @@ agio_dependencies: ["agio_core"]
 repository_api: gitea
 
 plugins:
-  # commands
-  - label:
+  # services
+  - label: agio Broker
     implementations:
       - module: plugins/services/broker_service.py
 
