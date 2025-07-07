@@ -5,6 +5,7 @@ import json
 import re
 import threading
 import time
+import uuid
 from queue import Queue
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ class BrokerServer:
         self._should_stop = threading.Event()
 
     async def _start_server(self):
-        self.server = await asyncio.start_server(self.handle_client, self.host, self.port)
+        self.server = await asyncio.start_server(self.handle_request, self.host, self.port)
         logger.info(f"Broker server running at http://{self.host}:{self.port}")
         await self.server.serve_forever()
 
@@ -54,7 +55,6 @@ class BrokerServer:
                 self.server.close()
                 await self.server.wait_closed()
                 # self.loop.stop()
-
             # Schedule the shutdown coroutine in the loop
             asyncio.run_coroutine_threadsafe(shutdown(), self.loop)
             self.thread.join()
@@ -114,84 +114,69 @@ class BrokerServer:
                 return {}, self._parse_multipart(body, boundary)
         return {}, {}
 
-    async def handle_client(self, reader, writer):
-        data = await reader.read(65536)
-        request = data.decode('utf-8', errors='ignore')
+    async def handle_request(self, reader, writer):
+        try:
+            await self.handle_client(reader, writer)
+        except Exception as e:
+            writer.write(self.with_head(
+                {"error": str(e)},
+                code=500
+            ).encode('utf-8', errors='ignore'))
+            await writer.drain()
+            writer.close()
+            await writer.wait_closed()
 
+    async def handle_client(self, reader, writer):
+        data = await reader.read(65536) # TODO: read more data
+        request = data.decode('utf-8', errors='ignore')
         try:
             header_section, body = request.split('\r\n\r\n', 1)
         except ValueError:
             writer.close()
             return
-
         request_lines = header_section.split('\r\n')
         request_line = request_lines[0]
         method, path, _ = request_line.split(' ', 2)
         headers = self._parse_headers(request_lines[1:])
         query = self._parse_query_string(path)
         parsed_body, files = await self._decode_body(headers, body)
-
-        request_id = str(time.time())
+        request_id = uuid.uuid4().hex
         payload = {
             "id": request_id,
             "method": method,
             "path": path,
             "query": query,
-            "body": parsed_body,
+            "data": parsed_body,
             "files": files,
         }
-        print(payload)
-        # TODO
-        # future = self.loop.create_future()
-        # self.response_map[request_id] = future
-        # self.queue.put(payload)
-        #
-        # try:
-        #     result = await asyncio.wait_for(future, timeout=5)
-        # except asyncio.TimeoutError:
-        #     result = {"error": "Request timed out"}
-        # except Exception as e:
-        #     result = {"error": str(e)}
-        # finally:
-        #     self.response_map.pop(request_id, None)
-        result = {'status': 'ok'}
-
-        response_body = json.dumps(result, ensure_ascii=False, indent=2)
-        response = (
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: application/json; charset=utf-8\r\n"
-            f"Content-Length: {len(response_body.encode())}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            f"{response_body}"
-        )
-
-        writer.write(response.encode())
+        result = await self.process_request(payload)
+        response = self.with_head(result)
+        writer.write(response.encode('utf-8', errors='ignore'))
         await writer.drain()
         writer.close()
         await writer.wait_closed()
 
-    # async def _start_server(self):
-    #     self.loop = asyncio.get_running_loop()
-    #     self.server = await asyncio.start_server(self.handle_client, self.host, self.port)
-    #     print(f"Server running at http://{self.host}:{self.port}")
-    #     async with self.server:
-    #         await self.server.serve_forever()
-    #
-    # def start(self):
-    #     asyncio.run(self._start_server())
-    #     # self.task = asyncio.create_task(self._start_server())
-    #     # return self.task
-    #
-    # async def stop(self):
-    #     if self.task:
-    #         self.task.cancel()
-    #         try:
-    #             await self.task
-    #         except asyncio.CancelledError:
-    #             print("Server task cancelled.")
-    #     if self.server:
-    #         self.server.close()
-    #         await self.server.wait_closed()
-    #     self.running = False
-    #     print("Server stopped.")
+    def with_head(self, data: dict, code: int = 200) -> str:
+        data_bytes = json.dumps(data, ensure_ascii=False, indent=2)
+        return (
+            f"HTTP/1.1 {code} OK\r\n"
+            "Content-Type: application/json; charset=utf-8\r\n"
+            f"Content-Length: {len(data_bytes)}\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            f"{data_bytes}"
+        )
+
+    async def process_request(self, payload: dict) -> dict|None:
+        future = self.loop.create_future()
+        self.response_map[payload['id']] = future
+        self.queue.put(payload)
+        try:
+            result = await asyncio.wait_for(future, timeout=5)
+        except asyncio.TimeoutError:
+            result = {"error": "Request timed out"}
+        except Exception as e:
+            result = {"error": str(e)}
+        finally:
+            self.response_map.pop(payload['id'], None)
+        return result
