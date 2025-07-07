@@ -1,15 +1,19 @@
 import logging
+import os
 from queue import Queue, Empty
 from threading import Thread
 
+from agio.core import store
+from agio.core.exceptions import ServiceStartupError
 from agio.core.main import plugin_hub
-from agio.core.plugins.base.service_base import ServicePlugin, action
+from agio.core.plugins.base.service_base import action, ThreadServicePlugin
+from agio.core.utils.process_utils import process_exists
 from agio_broker.lib.server import BrokerServer
 
 logger = logging.getLogger(__name__)
 
 
-class BrokerService(ServicePlugin):
+class BrokerService(ThreadServicePlugin):
     name = "broker"
 
     def __init__(self, *args, **kwargs):
@@ -18,6 +22,13 @@ class BrokerService(ServicePlugin):
         self.broker_server = None
         self.response_map = {}
         self.worker_thread = None
+
+    def before_start(self):
+        # check if broker already running
+        pid = store.get('broker_pid')
+        if pid and process_exists(pid):
+            raise ServiceStartupError('Broker service is already running')
+        store.set('broker_pid', os.getpid())
 
     def execute(self, **kwargs):
         # start requests receiver
