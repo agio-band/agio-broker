@@ -1,5 +1,3 @@
-import asyncio
-import time
 from queue import Queue
 
 from agio.core.plugins.base.service_base import ServicePlugin, action
@@ -16,12 +14,17 @@ class BrokerService(ServicePlugin):
         self.response_map = {}
 
     def execute(self, **kwargs):
+        # TODO:
         self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', 8080)
         self.broker_server.start()
 
     def stop(self):
         self.broker_server.stop()
         return super().stop()
+
+    @action()
+    def ping(self):
+        return {'pong': 'pong'}
 
     def sync_worker(self):
         while not self.is_stopped():

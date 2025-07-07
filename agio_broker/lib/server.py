@@ -23,7 +23,7 @@ class BrokerServer:
 
     async def _start_server(self):
         self.server = await asyncio.start_server(self.handle_client, self.host, self.port)
-        logger.info(f"Server running at http://{self.host}:{self.port}")
+        logger.info(f"Broker server running at http://{self.host}:{self.port}")
         await self.server.serve_forever()
 
     def _run_loop(self):
