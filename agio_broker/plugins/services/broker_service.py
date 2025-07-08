@@ -3,9 +3,8 @@ import os
 from queue import Queue, Empty
 from threading import Thread
 
-from agio.core import store
+from agio.core.utils import store
 from agio.core.exceptions import ServiceStartupError
-from agio.core.main import plugin_hub
 from agio.core.plugins.base.service_base import action, ThreadServicePlugin
 from agio.core.utils.process_utils import process_exists
 from agio_broker.lib.server import BrokerServer
@@ -83,7 +82,7 @@ class BrokerService(ThreadServicePlugin):
             raise Exception('Action name not set')
         service_name, action_name = action_name_full.split('.')
         action_func = None
-        for service in plugin_hub.iter_plugins('service'):
+        for service in self.plugin_hub.iter_plugins('service'):
             if service.name == service_name:
                 action_func = service.get_action(action_name)
                 break
