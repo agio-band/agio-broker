@@ -76,7 +76,7 @@ class BrokerService(ThreadServicePlugin):
                 raise Exception('Unknown request')
 
     def execute_action(self, request: dict) -> dict | None:
-        action_name_full = request['data'].get('action_name')
+        action_name_full = request['data'].get('action')
         logger.debug('Executing action %s', action_name_full)
         if not action_name_full:
             raise Exception('Action name not set')

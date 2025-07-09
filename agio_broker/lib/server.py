@@ -127,17 +127,35 @@ class BrokerServer:
             await writer.wait_closed()
 
     async def handle_client(self, reader, writer):
-        data = await reader.read(65536) # TODO: read more data
+        data = await reader.read(65536)
         request = data.decode('utf-8', errors='ignore')
         try:
             header_section, body = request.split('\r\n\r\n', 1)
         except ValueError:
             writer.close()
             return
+
         request_lines = header_section.split('\r\n')
         request_line = request_lines[0]
         method, path, _ = request_line.split(' ', 2)
         headers = self._parse_headers(request_lines[1:])
+
+        if method == "OPTIONS":
+            response = (
+                "HTTP/1.1 204 No Content\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+                "Access-Control-Allow-Headers: Content-Type\r\n"
+                "Content-Length: 0\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            )
+            writer.write(response.encode("utf-8"))
+            await writer.drain()
+            writer.close()
+            await writer.wait_closed()
+            return
+
         query = self._parse_query_string(path)
         parsed_body, files = await self._decode_body(headers, body)
         request_id = uuid.uuid4().hex
@@ -156,16 +174,20 @@ class BrokerServer:
         writer.close()
         await writer.wait_closed()
 
-    def with_head(self, data: dict, code: int = 200) -> str:
+    def with_head(self, data: dict, code: int = 200, extra_headers: dict = None) -> str:
         data_bytes = json.dumps(data, ensure_ascii=False, indent=2)
-        return (
-            f"HTTP/1.1 {code} OK\r\n"
-            "Content-Type: application/json; charset=utf-8\r\n"
-            f"Content-Length: {len(data_bytes)}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            f"{data_bytes}"
-        )
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Content-Length": str(len(data_bytes)),
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Connection": "close",
+        }
+        if extra_headers:
+            headers.update(extra_headers)
+        header_str = "\r\n".join(f"{k}: {v}" for k, v in headers.items())
+        return f"HTTP/1.1 {code} OK\r\n{header_str}\r\n\r\n{data_bytes}"
 
     async def process_request(self, payload: dict) -> dict|None:
         future = self.loop.create_future()
