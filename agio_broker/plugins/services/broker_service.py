@@ -81,11 +81,13 @@ class BrokerService(ThreadServicePlugin):
         if not action_name_full:
             raise Exception('Action name not set')
         service_name, action_name = action_name_full.split('.')
-        action_func = None
-        for service in self.plugin_hub.iter_plugins('service'):
-            if service.name == service_name:
-                action_func = service.get_action(action_name)
-                break
+        service = self.plugin_hub.find_plugin_by_name('service', service_name)
+        if not service:
+            raise Exception(f'Service {service_name} not found')
+        action_func = service.get_action(action_name)
         if not action_func:
             raise Exception(f'Action {action_name_full} not found')
-        return action_func(*request['data'].get('args', []), **request['data'].get('kwargs', {}))
+
+        args = request['data'].get('args', [])
+        kwargs = request['data'].get('kwargs', {})
+        return action_func(*args, **kwargs)
