@@ -5,7 +5,7 @@ from threading import Thread
 
 from agio.core.utils import store
 from agio.core.exceptions import ServiceStartupError
-from agio.core.plugins.base.service_base import action, ThreadServicePlugin
+from agio.core.plugins.base.service_base import make_action, ThreadServicePlugin
 from agio.core.utils.process_utils import process_exists
 from agio_broker.lib.server import BrokerServer
 
@@ -45,7 +45,7 @@ class BrokerService(ThreadServicePlugin):
         # stop worker
         self.worker_thread.join()
 
-    @action()
+    @make_action()
     def ping(self):
         return {'result': 'pong'}
 
