@@ -1,4 +1,5 @@
 import requests
+from agio.core.settings import get_local_settings
 
 
 def send_action(name, *args, **kwargs):
@@ -7,4 +8,6 @@ def send_action(name, *args, **kwargs):
         args=args,
         kwargs=kwargs,
     )
-    return requests.post('http://localhost:8080/action', json=data).json()
+    settings = get_local_settings()
+    port = settings.get('agio_broker.port')
+    return requests.post(f'http://localhost:{port}/action', json=data).json()

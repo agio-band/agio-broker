@@ -21,8 +21,8 @@ plugins:
     implementations:
       - module: plugins/services/broker_service.py
 
-#settings:
-#  local:
-#    model: package_settings.local_settings.DesktopSettings
-#    layout: package_settings/local_layout.yml
+settings:
+  local:
+    model: package_settings.local_settings.BrokerSettings
+    layout: package_settings/local_layout.yml
 
