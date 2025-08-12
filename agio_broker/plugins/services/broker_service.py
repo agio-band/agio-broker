@@ -3,10 +3,11 @@ import os
 from queue import Queue, Empty
 from threading import Thread
 
-from agio.core.utils import store
+from agio.core.utils import store, actions
 from agio.core.exceptions import ServiceStartupError
-from agio.core.plugins.base.service_base import make_action, ThreadServicePlugin
+from agio.core.plugins.base_service import make_action, ThreadServicePlugin
 from agio.core.utils.process_utils import process_exists
+from agio.core.settings import get_local_settings
 from agio_broker.lib.server import BrokerServer
 
 logger = logging.getLogger(__name__)
@@ -30,11 +31,12 @@ class BrokerService(ThreadServicePlugin):
         store.set('broker_pid', os.getpid())
 
     def execute(self, **kwargs):
+        settings = get_local_settings()
         # start requests receiver
         self.worker_thread = Thread(target=self.sync_worker)
         self.worker_thread.start()
         # start async local server
-        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', 8080)
+        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', settings.get('agio_broker.port'))
         self.broker_server.start()
 
     def stop(self):
@@ -80,14 +82,7 @@ class BrokerService(ThreadServicePlugin):
         logger.debug('Executing action %s', action_name_full)
         if not action_name_full:
             raise Exception('Action name not set')
-        service_name, action_name = action_name_full.split('.')
-        service = self.plugin_hub.find_plugin_by_name('service', service_name)
-        if not service:
-            raise Exception(f'Service {service_name} not found')
-        action_func = service.get_action(action_name)
-        if not action_func:
-            raise Exception(f'Action {action_name_full} not found')
-
+        action_func = actions.get_action_func(action_name_full)
         args = request['data'].get('args', [])
         kwargs = request['data'].get('kwargs', {})
         return action_func(*args, **kwargs)
