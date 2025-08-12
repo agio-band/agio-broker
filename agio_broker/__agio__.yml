@@ -10,8 +10,7 @@ urls:
   documentation: ""
   bug_tracker: ""
 
-#dependencies: ["psutil"]
-agio_dependencies: ["agio_core"]
+required_packages: []
 
 repository_api: gitea
 
