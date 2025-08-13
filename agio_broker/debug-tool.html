@@ -36,9 +36,6 @@
 </head>
 <body class="bg-dark">
 <div id="app" class="container py-4">
-<!--  <header class="mb-3">-->
-<!--    <h1 class="h3 fw-bold">agio.broker testing</h1>-->
-<!--  </header>-->
 <div class="row">
   <div class="col-md-6 pb-2">
     <h1 class="h3 fw-bold">
@@ -51,22 +48,17 @@
     <input v-model="endpoint" type="text" class="form-control ms-auto" placeholder="http://localhost:8877/action" style="max-width: 300px">
   </div>
 </div>
-<!--  <div class="mb-3 d-flex align-items-center gap-2">-->
-<!--    <h1 class="h3 fw-bold">agio.broker testing</h1>-->
-<!--    <label class="form-label mb-0">Endpoint:</label>-->
-<!--    <input v-model="endpoint" type="text" class="form-control" placeholder="http://localhost:8877/action">-->
-<!--  </div>-->
 
   <ul class="nav nav-tabs mb-3">
     <li v-for="(tab, index) in tabs" :key="tab.id" class="nav-item">
       <a href="#" class="nav-link" :class="{ active: activeTab === index }"
          @click.prevent="activeTab = index">
-        {{ tab.title }}
+        {{ tab.action || tab.title }}
         <button class="tab-close" @click.stop="closeTab(index)">×</button>
       </a>
     </li>
     <li class="nav-item">
-      <button class="btn btn-sm btn-outline-light ms-2" @click="addTab">Add</button>
+      <button class="btn btn-sm btn-outline-secondary ms-2" @click="addTab">Add</button>
     </li>
   </ul>
 
@@ -76,6 +68,10 @@
         <div>
           <label class="form-label">Action</label>
           <input v-model="tab.action" type="text" class="form-control" required>
+        </div>
+        <div>
+          <label class="form-label">Arguments (space separated, use quotes for multi-word args)</label>
+          <input v-model="tab.argsInput" type="text" class="form-control" placeholder="arg1 'arg with spaces' arg2">
         </div>
         <div>
           <label class="form-label">Kwargs (JSON)</label>
@@ -137,7 +133,14 @@ createApp({
     },
     addTab() {
       const id = Date.now();
-      this.tabs.push({ id, title: `Tab ${this.tabs.length + 1}`, action: '', kwargs: '{}', response: '' });
+      this.tabs.push({
+        id,
+        title: `Tab ${this.tabs.length + 1}`,
+        action: '',
+        argsInput: '',
+        kwargs: '{}',
+        response: ''
+      });
       this.activeTab = this.tabs.length - 1;
       this.$nextTick(() => this.initEditor(this.activeTab));
     },
@@ -180,6 +183,19 @@ createApp({
     clearJSON(index) {
       this.editors[this.tabs[index].id].setValue('{}', -1);
     },
+    parseArguments(input) {
+      if (!input.trim()) return [];
+
+      const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
+      const args = [];
+      let match;
+
+      while ((match = regex.exec(input)) !== null) {
+        args.push(match[1] || match[2] || match[0]);
+      }
+
+      return args;
+    },
     sendRequest(index) {
       const tab = this.tabs[index];
       let kwargsObj;
@@ -189,7 +205,14 @@ createApp({
         tab.response = 'Invalid JSON';
         return;
       }
+
+      const args = this.parseArguments(tab.argsInput);
       const payload = { action: tab.action, kwargs: kwargsObj };
+
+      if (args.length > 0) {
+        payload.args = args;
+      }
+
       fetch(this.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

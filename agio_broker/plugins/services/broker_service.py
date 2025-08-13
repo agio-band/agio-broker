@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 from queue import Queue, Empty
 from threading import Thread
 
@@ -64,6 +65,7 @@ class BrokerService(ThreadServicePlugin):
                 response = self.process_request(task)
             except Exception as e:
                 response = {"error": str(e)}
+                traceback.print_exc()
 
             future = self.response_map.get(request_id)
             if future and not future.done():
