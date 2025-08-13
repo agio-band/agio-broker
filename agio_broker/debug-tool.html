@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>JSON Action Sender — Tabs</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/ace.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/ext-language_tools.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/mode-json.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/theme-twilight.js"></script>
+
+  <style>
+    body { min-height: 100vh; }
+    .ace_editor { border-radius: 0.75rem; }
+    .editor-container { width: 100%; height: 260px; }
+    .nav-tabs .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .tab-close {
+      border: none;
+      background: transparent;
+      color: #aaa;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+    }
+    .tab-close:hover { color: #fff; }
+  </style>
+</head>
+<body class="bg-dark">
+<div id="app" class="container py-4">
+<!--  <header class="mb-3">-->
+<!--    <h1 class="h3 fw-bold">agio.broker testing</h1>-->
+<!--  </header>-->
+<div class="row">
+  <div class="col-md-6 pb-2">
+    <h1 class="h3 fw-bold">
+      agio.broker
+    </h1>
+    <span style="color: gray">Testing tool</span>
+  </div>
+  <div class="col-md-6 text-end">
+    <label class="form-label mb-0">Endpoint:</label>
+    <input v-model="endpoint" type="text" class="form-control ms-auto" placeholder="http://localhost:8877/action" style="max-width: 300px">
+  </div>
+</div>
+<!--  <div class="mb-3 d-flex align-items-center gap-2">-->
+<!--    <h1 class="h3 fw-bold">agio.broker testing</h1>-->
+<!--    <label class="form-label mb-0">Endpoint:</label>-->
+<!--    <input v-model="endpoint" type="text" class="form-control" placeholder="http://localhost:8877/action">-->
+<!--  </div>-->
+
+  <ul class="nav nav-tabs mb-3">
+    <li v-for="(tab, index) in tabs" :key="tab.id" class="nav-item">
+      <a href="#" class="nav-link" :class="{ active: activeTab === index }"
+         @click.prevent="activeTab = index">
+        {{ tab.title }}
+        <button class="tab-close" @click.stop="closeTab(index)">×</button>
+      </a>
+    </li>
+    <li class="nav-item">
+      <button class="btn btn-sm btn-outline-light ms-2" @click="addTab">Add</button>
+    </li>
+  </ul>
+
+  <div v-for="(tab, index) in tabs" v-show="activeTab === index" :key="'panel-'+tab.id" class="card bg-body-tertiary shadow">
+    <div class="card-body">
+      <form @submit.prevent="sendRequest(index)" class="vstack gap-3">
+        <div>
+          <label class="form-label">Action</label>
+          <input v-model="tab.action" type="text" class="form-control" required>
+        </div>
+        <div>
+          <label class="form-label">Kwargs (JSON)</label>
+          <div :id="'editor-'+tab.id" class="border editor-container"></div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="submit" class="btn btn-primary">Send</button>
+          <button type="button" class="btn btn-outline-light" @click="prettyJSON(index)">Reformat JSON</button>
+          <button type="button" class="btn btn-outline-warning" @click="clearJSON(index)">Clear</button>
+        </div>
+      </form>
+      <hr>
+      <h5>Response</h5>
+      <pre class="p-3 bg-dark border rounded-3 text-white" style="white-space: pre-wrap">{{ tab.response }}</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp, nextTick } = Vue;
+
+createApp({
+  data() {
+    return {
+      endpoint: 'http://localhost:8877/action',
+      tabs: [],
+      activeTab: 0,
+      editors: {}
+    }
+  },
+  mounted() {
+    const saved = localStorage.getItem('json-tabs-state');
+    if (saved) {
+      const state = JSON.parse(saved);
+      this.endpoint = state.endpoint || '';
+      this.tabs = state.tabs || [];
+    }
+    if (!this.tabs.length) {
+      this.addTab();
+    }
+    this.$nextTick(() => {
+      this.tabs.forEach((_, i) => this.initEditor(i));
+    });
+  },
+  watch: {
+    tabs: {
+      handler() { this.saveState(); },
+      deep: true
+    },
+    endpoint() { this.saveState(); },
+    activeTab() { this.$nextTick(() => this.initEditor(this.activeTab)); }
+  },
+  methods: {
+    saveState() {
+      localStorage.setItem('json-tabs-state', JSON.stringify({
+        endpoint: this.endpoint,
+        tabs: this.tabs
+      }));
+    },
+    addTab() {
+      const id = Date.now();
+      this.tabs.push({ id, title: `Tab ${this.tabs.length + 1}`, action: '', kwargs: '{}', response: '' });
+      this.activeTab = this.tabs.length - 1;
+      this.$nextTick(() => this.initEditor(this.activeTab));
+    },
+    closeTab(index) {
+      this.tabs.splice(index, 1);
+      if (this.activeTab >= this.tabs.length) {
+        this.activeTab = this.tabs.length - 1;
+      }
+    },
+    initEditor(index) {
+      const tab = this.tabs[index];
+      if (!tab) return;
+      const el = document.getElementById('editor-' + tab.id);
+      if (!el) return;
+      if (this.editors[tab.id]) return;
+      const editor = ace.edit(el, {
+        mode: "ace/mode/json",
+        theme: "ace/theme/twilight",
+        fontSize: "14px",
+        tabSize: 2,
+        useSoftTabs: true,
+        showPrintMargin: false,
+        wrap: true,
+      });
+      editor.setValue(tab.kwargs || '{}', -1);
+      editor.on('change', () => {
+        tab.kwargs = editor.getValue();
+      });
+      this.editors[tab.id] = editor;
+    },
+    prettyJSON(index) {
+      const tab = this.tabs[index];
+      try {
+        const obj = JSON.parse(tab.kwargs);
+        this.editors[tab.id].setValue(JSON.stringify(obj, null, 2), -1);
+      } catch {
+        tab.response = 'Invalid JSON';
+      }
+    },
+    clearJSON(index) {
+      this.editors[this.tabs[index].id].setValue('{}', -1);
+    },
+    sendRequest(index) {
+      const tab = this.tabs[index];
+      let kwargsObj;
+      try {
+        kwargsObj = JSON.parse(tab.kwargs);
+      } catch {
+        tab.response = 'Invalid JSON';
+        return;
+      }
+      const payload = { action: tab.action, kwargs: kwargsObj };
+      fetch(this.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.text())
+        .then(text => {
+          try {
+            tab.response = JSON.stringify(JSON.parse(text), null, 2);
+          } catch {
+            tab.response = text;
+          }
+        })
+        .catch(err => {
+          tab.response = 'Error: ' + err.message;
+        });
+    }
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
