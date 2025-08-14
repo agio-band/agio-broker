@@ -8,7 +8,7 @@ from agio.core.utils import store, actions
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
 from agio.core.utils.process_utils import process_exists
-from agio.core.settings import get_local_settings
+from agio.core import settings
 from agio_broker.lib.server import BrokerServer
 
 logger = logging.getLogger(__name__)
@@ -32,12 +32,12 @@ class BrokerService(ThreadServicePlugin):
         store.set('broker_pid', os.getpid())
 
     def execute(self, **kwargs):
-        settings = get_local_settings()
+        s = settings.get_local_settings()
         # start requests receiver
         self.worker_thread = Thread(target=self.sync_worker)
         self.worker_thread.start()
         # start async local server
-        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', settings.get('agio_broker.port'))
+        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', s.get('agio_broker.port'))
         self.broker_server.start()
 
     def stop(self):
