@@ -208,7 +208,7 @@ createApp({
 
       const args = this.parseArguments(tab.argsInput);
       const payload = { action: tab.action, kwargs: kwargsObj };
-
+      console.log(JSON.stringify(payload, null, 2))
       if (args.length > 0) {
         payload.args = args;
       }
