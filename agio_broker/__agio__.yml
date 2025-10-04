@@ -6,13 +6,13 @@ description: |
 icon: 'core/agio-logo.png'
 
 urls:
-  home_page: ""
+  home_page: "https://github.com/agio-band/agio-broker.git"
   documentation: ""
   bug_tracker: ""
 
-required_packages: []
-
-repository_api: gitea
+agio_package_dependencies: [
+  'agio-core==0.0.1'
+]
 
 plugins:
   # services
