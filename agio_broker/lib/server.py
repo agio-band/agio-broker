@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import traceback
 import urllib.parse
 import json
 import re
@@ -118,6 +119,7 @@ class BrokerServer:
         try:
             await self.handle_client(reader, writer)
         except Exception as e:
+            traceback.print_exc()
             writer.write(self.with_head(
                 {"error": str(e)},
                 code=500
@@ -198,6 +200,7 @@ class BrokerServer:
         except asyncio.TimeoutError:
             result = {"error": "Request timed out"}
         except Exception as e:
+            traceback.print_exc()
             result = {"error": str(e)}
         finally:
             self.response_map.pop(payload['id'], None)
