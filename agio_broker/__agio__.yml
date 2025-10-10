@@ -6,8 +6,9 @@ description: |
 icon: 'core/agio-logo.png'
 
 urls:
-  home_page: "https://github.com/agio-band/agio-broker.git"
-  documentation: ""
+  source_url: "https://github.com/agio-band/agio-broker"
+  home_page: "https://github.com/agio-band/agio-broker"
+  documentation: "https://github.com/agio-band/agio-broker"
   bug_tracker: ""
 
 agio_package_dependencies: [
