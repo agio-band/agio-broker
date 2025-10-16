@@ -389,14 +389,7 @@ createApp({
                 tab.loading = false;
                 return;
             }
-            console.log(this.fetcher.taskId)
-            if (!this.fetcher.taskId) {
-                alert('Task id not set')
-                tab.loading = false;
-                return
-            }
-            kwargsObj.task_id = this.fetcher.taskId;
-
+            console.log(kwargsObj)
             const args = this.parseArguments(tab.argsInput);
             const payload = { action: tab.action, kwargs: kwargsObj };
 
