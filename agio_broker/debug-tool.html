@@ -1,236 +1,534 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <title>JSON Action Sender — Tabs</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta charset="UTF-8">
+    <title>JSON Action Sender — Tabs</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/ace.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/ext-language_tools.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/mode-json.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/theme-twilight.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/ace.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/ext-language_tools.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/mode-json.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.34.2/src-min-noconflict/theme-twilight.js"></script>
 
-  <style>
-    body { min-height: 100vh; }
-    .ace_editor { border-radius: 0.75rem; }
-    .editor-container { width: 100%; height: 260px; }
-    .nav-tabs .nav-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .tab-close {
-      border: none;
-      background: transparent;
-      color: #aaa;
-      font-size: 1rem;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0;
-    }
-    .tab-close:hover { color: #fff; }
-  </style>
+    <style>
+        body { min-height: 100vh; }
+        .ace_editor { border-radius: 0.75rem; }
+        /* Adjusted height for better visibility on a single screen */
+        .editor-container { width: 100%; height: 260px; }
+        .nav-tabs .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .tab-close {
+            border: none;
+            background: transparent;
+            color: #aaa;
+            font-size: 1rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 0.5rem;
+        }
+        .tab-close:hover { color: #fff; }
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd !important; /* Primary color for distinction */
+        }
+        .raw-response-pre {
+            white-space: pre-wrap;
+            margin-bottom: 0;
+            font-size: 0.8rem;
+        }
+    </style>
 </head>
 <body class="bg-dark">
 <div id="app" class="container py-4">
-<div class="row">
-  <div class="col-md-6 pb-2">
-    <h1 class="h3 fw-bold">
-      agio.broker
-    </h1>
-    <span style="color: gray">Testing tool</span>
-  </div>
-  <div class="col-md-6 text-end">
-    <label class="form-label mb-0">Endpoint:</label>
-    <input v-model="endpoint" type="text" class="form-control ms-auto" placeholder="http://localhost:8877/action" style="max-width: 300px">
-  </div>
-</div>
 
-  <ul class="nav nav-tabs mb-3">
-    <li v-for="(tab, index) in tabs" :key="tab.id" class="nav-item">
-      <a href="#" class="nav-link" :class="{ active: activeTab === index }"
-         @click.prevent="activeTab = index">
-        {{ tab.action || tab.title }}
-        <button class="tab-close" @click.stop="closeTab(index)">×</button>
-      </a>
-    </li>
-    <li class="nav-item">
-      <button class="btn btn-sm btn-outline-secondary ms-2" @click="addTab">Add</button>
-    </li>
-  </ul>
-
-  <div v-for="(tab, index) in tabs" v-show="activeTab === index" :key="'panel-'+tab.id" class="card bg-body-tertiary shadow">
-    <div class="card-body">
-      <form @submit.prevent="sendRequest(index)" class="vstack gap-3">
-        <div>
-          <label class="form-label">Action</label>
-          <input v-model="tab.action" type="text" class="form-control" required>
+    <!-- Top Level Header (Visible across all tabs, moved to the top) -->
+    <div class="row mb-3 align-items-end">
+        <div class="col-md-6 pb-2">
+            <h1 class="h3 fw-bold">agio.broker</h1>
+            <span style="color: gray">Testing tool</span>
         </div>
-        <div>
-          <label class="form-label">Arguments (space separated, use quotes for multi-word args)</label>
-          <input v-model="tab.argsInput" type="text" class="form-control" placeholder="arg1 'arg with spaces' arg2">
+        <div class="col-md-6 text-end">
+            <label class="form-label mb-0">Endpoint:</label>
+            <input v-model="endpoint" type="text" class="form-control ms-auto" placeholder="http://localhost:8877/action" style="max-width: 300px">
         </div>
-        <div>
-          <label class="form-label">Kwargs (JSON)</label>
-          <div :id="'editor-'+tab.id" class="border editor-container"></div>
-        </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <button type="submit" class="btn btn-primary">Send</button>
-          <button type="button" class="btn btn-outline-light" @click="prettyJSON(index)">Reformat JSON</button>
-          <button type="button" class="btn btn-outline-warning" @click="clearJSON(index)">Clear</button>
-        </div>
-      </form>
-      <hr>
-      <h5>Response</h5>
-      <pre class="p-3 bg-dark border rounded-3 text-white" style="white-space: pre-wrap">{{ tab.response }}</pre>
     </div>
-  </div>
+
+    <!-- Top Level Tabs (Pills for visual distinction, moved below header) -->
+    <ul class="nav nav-pills mb-4" role="tablist">
+        <li v-for="(tab, index) in topTabs" :key="tab.id" class="nav-item" role="presentation">
+            <a href="#" class="nav-link fw-bold" :class="{ 'active': topActiveTab === index }"
+               @click.prevent="topActiveTab = index" role="tab">
+                {{ tab.title }}
+            </a>
+        </li>
+    </ul>
+
+    <!-- Top Level Content 0: JSON Sender (Original Tab Group) -->
+    <div v-show="topActiveTab === 0" id="sender-content">
+        <!--tabs start-->
+        <ul class="nav nav-tabs mb-3">
+            <li v-for="(tab, index) in tabs" :key="tab.id" class="nav-item">
+                <a href="#" class="nav-link" :class="{ active: activeTab === index }"
+                   @click.prevent="activeTab = index">
+                    {{ tab.action || tab.title }}
+                    <button v-if="tabs.length > 1" class="tab-close" @click.stop="closeTab(index)">×</button>
+                </a>
+            </li>
+            <li class="nav-item">
+                <button class="btn btn-sm btn-outline-secondary ms-2" @click="addTab">Add Tab</button>
+            </li>
+        </ul>
+
+        <div v-for="(tab, index) in tabs" v-show="activeTab === index" :key="'panel-'+tab.id" class="card bg-body-tertiary shadow">
+            <div class="card-body">
+                <form @submit.prevent="sendRequest(index)" class="vstack gap-3">
+                    <div>
+                        <label class="form-label">Action</label>
+                        <input v-model="tab.action" type="text" class="form-control" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Arguments (space separated, use quotes for multi-word args)</label>
+                        <input v-model="tab.argsInput" type="text" class="form-control" placeholder="arg1 'arg with spaces' arg2">
+                    </div>
+                    <div>
+                        <label class="form-label">Kwargs (JSON)</label>
+                        <div :id="'editor-'+tab.id" class="border editor-container"></div>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="submit" class="btn btn-primary" :disabled="tab.loading">
+                            <span v-if="tab.loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Send
+                        </button>
+                        <button type="button" class="btn btn-outline-light" @click="prettyJSON(index)">Reformat JSON</button>
+                        <button type="button" class="btn btn-outline-warning" @click="clearJSON(index)">Clear</button>
+                    </div>
+                </form>
+                <hr>
+                <h5>Response</h5>
+                <pre class="p-3 bg-dark border rounded-3 text-white raw-response-pre">{{ tab.response }}</pre>
+            </div>
+        </div>
+        <!--  tabs end -->
+    </div>
+
+    <!-- Top Level Content 1: Action Fetcher (New Content) -->
+    <div v-show="topActiveTab === 1" id="fetcher-content">
+        <div class="card bg-body-tertiary shadow p-4 mb-4">
+            <h4 class="card-title text-info mb-3">Launcher Actions</h4>
+            <form @submit.prevent="fetchActions" class="vstack gap-3">
+
+                <!-- Row 1: Menu Name and App Name on the same line -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Menu Name</label>
+                        <input v-model="fetcher.menuName" type="text" class="form-control" placeholder="tools" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">App Name</label>
+                        <input v-model="fetcher.appName" type="text" class="form-control" placeholder="front" required>
+                    </div>
+                </div>
+
+                <!-- Row 2: Task ID full width -->
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Task ID (Optional) (for action execution)</label>
+                        <input v-model="fetcher.taskId" type="text" class="form-control" placeholder="12345">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success mt-3" :disabled="fetcher.loading">
+                    <span v-if="fetcher.loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Fetch Actions
+                </button>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div v-if="fetcher.response" class="card shadow">
+            <div class="card-header bg-dark-subtle">
+                <h5 class="card-title mb-0 text-light">Available Actions ({{ fetcher.items.length }})</h5>
+            </div>
+            <div v-if="fetcher.items.length" class="list-group list-group-flush">
+                <a href="#" v-for="(item, i) in fetcher.items" :key="i"
+                   class="list-group-item list-group-item-action bg-body-tertiary text-light border-dark"
+                   @click.prevent="handleActionClick(item)">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <h6 class="mb-1 text-info">{{ item.label || item.name || 'No Label' }}</h6>
+<!--                        <small class="badge bg-primary rounded-pill">{{ item.action }}</small>-->
+                    </div>
+<!--                    <small class="text-secondary d-block">Group: {{ item.group || 'N/A' }} | App: {{ item.app_name || 'N/A' }}</small>-->
+                    <small class="text-secondary d-block">Action: {{ item.action }}</small>
+                    <div class="small mt-1 text-muted text-truncate">
+                        Kwargs: {{ item.kwargs ? JSON.stringify(item.kwargs) : '{}' }}
+                    </div>
+                </a>
+            </div>
+            <div v-else class="card-body text-warning">
+                <p class="mb-0">No actions found or unexpected response format.</p>
+            </div>
+        </div>
+
+        <!-- Raw Response (Reused for Action Fetcher results and immediate action execution results) -->
+        <div v-if="fetcher.responseText" class="card shadow mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center bg-dark-subtle">
+                <h6 class="mb-0 text-light">Raw Response</h6>
+                <button class="btn btn-sm btn-outline-info" @click="fetcher.isResponseCollapsed = !fetcher.isResponseCollapsed">
+                    {{ fetcher.isResponseCollapsed ? 'Show' : 'Hide' }}
+                </button>
+            </div>
+            <div class="collapse" :class="{ 'show': !fetcher.isResponseCollapsed }">
+                <pre class="p-3 bg-dark text-white raw-response-pre">{{ fetcher.responseText }}</pre>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
 const { createApp, nextTick } = Vue;
 
 createApp({
-  data() {
-    return {
-      endpoint: 'http://localhost:8877/action',
-      tabs: [],
-      activeTab: 0,
-      editors: {}
-    }
-  },
-  mounted() {
-    const saved = localStorage.getItem('json-tabs-state');
-    if (saved) {
-      const state = JSON.parse(saved);
-      this.endpoint = state.endpoint || '';
-      this.tabs = state.tabs || [];
-    }
-    if (!this.tabs.length) {
-      this.addTab();
-    }
-    this.$nextTick(() => {
-      this.tabs.forEach((_, i) => this.initEditor(i));
-    });
-  },
-  watch: {
-    tabs: {
-      handler() { this.saveState(); },
-      deep: true
-    },
-    endpoint() { this.saveState(); },
-    activeTab() { this.$nextTick(() => this.initEditor(this.activeTab)); }
-  },
-  methods: {
-    saveState() {
-      localStorage.setItem('json-tabs-state', JSON.stringify({
-        endpoint: this.endpoint,
-        tabs: this.tabs
-      }));
-    },
-    addTab() {
-      const id = Date.now();
-      this.tabs.push({
-        id,
-        title: `Tab ${this.tabs.length + 1}`,
-        action: '',
-        argsInput: '',
-        kwargs: '{}',
-        response: ''
-      });
-      this.activeTab = this.tabs.length - 1;
-      this.$nextTick(() => this.initEditor(this.activeTab));
-    },
-    closeTab(index) {
-      this.tabs.splice(index, 1);
-      if (this.activeTab >= this.tabs.length) {
-        this.activeTab = this.tabs.length - 1;
-      }
-    },
-    initEditor(index) {
-      const tab = this.tabs[index];
-      if (!tab) return;
-      const el = document.getElementById('editor-' + tab.id);
-      if (!el) return;
-      if (this.editors[tab.id]) return;
-      const editor = ace.edit(el, {
-        mode: "ace/mode/json",
-        theme: "ace/theme/twilight",
-        fontSize: "14px",
-        tabSize: 2,
-        useSoftTabs: true,
-        showPrintMargin: false,
-        wrap: true,
-      });
-      editor.setValue(tab.kwargs || '{}', -1);
-      editor.on('change', () => {
-        tab.kwargs = editor.getValue();
-      });
-      this.editors[tab.id] = editor;
-    },
-    prettyJSON(index) {
-      const tab = this.tabs[index];
-      try {
-        const obj = JSON.parse(tab.kwargs);
-        this.editors[tab.id].setValue(JSON.stringify(obj, null, 2), -1);
-      } catch {
-        tab.response = 'Invalid JSON';
-      }
-    },
-    clearJSON(index) {
-      this.editors[this.tabs[index].id].setValue('{}', -1);
-    },
-    parseArguments(input) {
-      if (!input.trim()) return [];
+    data() {
+        return {
+            endpoint: 'http://localhost:8877/action',
+            // Top-level state
+            topActiveTab: 0,
+            topTabs: [
+                { id: 'sender', title: 'JSON Sender' },
+                { id: 'fetcher', title: 'Action Fetcher' }
+            ],
 
-      const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
-      const args = [];
-      let match;
+            // State for the nested tab (JSON Sender)
+            tabs: [],
+            activeTab: 0,
+            editors: {},
 
-      while ((match = regex.exec(input)) !== null) {
-        args.push(match[1] || match[2] || match[0]);
-      }
-
-      return args;
+            // State for the new tab (Action Fetcher)
+            fetcher: {
+                menuName: 'tools', // Default value
+                appName: 'front', // Default value
+                taskId: '',
+                loading: false,
+                response: null,
+                responseText: '',
+                items: [],
+                isResponseCollapsed: true
+            }
+        }
     },
-    sendRequest(index) {
-      const tab = this.tabs[index];
-      let kwargsObj;
-      try {
-        kwargsObj = JSON.parse(tab.kwargs);
-      } catch {
-        tab.response = 'Invalid JSON';
-        return;
-      }
+    mounted() {
+        const saved = localStorage.getItem('json-tabs-state');
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                this.endpoint = state.endpoint || '';
+                this.tabs = state.tabs || [];
+                this.topActiveTab = state.topActiveTab || 0;
 
-      const args = this.parseArguments(tab.argsInput);
-      const payload = { action: tab.action, kwargs: kwargsObj };
-      console.log(JSON.stringify(payload, null, 2))
-      if (args.length > 0) {
-        payload.args = args;
-      }
+                // Loading fetcher state from localStorage (already handled, confirming its presence)
+                if (state.fetcher) {
+                    this.fetcher.menuName = state.fetcher.menuName || this.fetcher.menuName;
+                    this.fetcher.appName = state.fetcher.appName || this.fetcher.appName;
+                    this.fetcher.taskId = state.fetcher.taskId || '';
+                }
+            } catch (e) {
+                console.error("Failed to load state from localStorage:", e);
+                // Fallback to default state if loading fails
+            }
+        }
 
-      fetch(this.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-        .then(res => res.text())
-        .then(text => {
-          try {
-            tab.response = JSON.stringify(JSON.parse(text), null, 2);
-          } catch {
-            tab.response = text;
-          }
-        })
-        .catch(err => {
-          tab.response = 'Error: ' + err.message;
+        if (!this.tabs.length) {
+            this.addTab();
+        }
+        // Initialize editors for all loaded tabs
+        this.$nextTick(() => {
+            this.tabs.forEach((_, i) => this.initEditor(i));
         });
+    },
+    watch: {
+        tabs: {
+            handler() { this.saveState(); },
+            deep: true
+        },
+        endpoint() { this.saveState(); },
+        topActiveTab(newVal) {
+             // Re-initialize editor when switching back to the sender tab
+             if (newVal === 0) {
+                 this.$nextTick(() => this.initEditor(this.activeTab));
+             }
+             this.saveState();
+        },
+        // Watching fetcher fields to trigger saveState
+        'fetcher.menuName': { handler() { this.saveState(); } },
+        'fetcher.appName': { handler() { this.saveState(); } },
+        'fetcher.taskId': { handler() { this.saveState(); } },
+    },
+    methods: {
+        saveState() {
+            localStorage.setItem('json-tabs-state', JSON.stringify({
+                endpoint: this.endpoint,
+                tabs: this.tabs,
+                topActiveTab: this.topActiveTab,
+                // Saving fetcher state
+                fetcher: {
+                    menuName: this.fetcher.menuName,
+                    appName: this.fetcher.appName,
+                    taskId: this.fetcher.taskId
+                }
+            }));
+        },
+        addTab() {
+            const id = Date.now();
+            this.tabs.push({
+                id,
+                title: `Tab ${this.tabs.length + 1}`,
+                action: '',
+                argsInput: '',
+                kwargs: '{}',
+                response: '',
+                loading: false,
+            });
+            this.activeTab = this.tabs.length - 1;
+            this.$nextTick(() => this.initEditor(this.activeTab));
+        },
+        closeTab(index) {
+            delete this.editors[this.tabs[index].id];
+            this.tabs.splice(index, 1);
+            if (this.tabs.length === 0) {
+                this.addTab(); // Ensure at least one tab exists
+            } else if (this.activeTab >= this.tabs.length) {
+                this.activeTab = this.tabs.length - 1;
+            }
+        },
+        initEditor(index) {
+            const tab = this.tabs[index];
+            if (!tab || this.topActiveTab !== 0) return;
+
+            const elId = 'editor-' + tab.id;
+            const el = document.getElementById(elId);
+
+            if (!el) {
+                 // The element might not be in the DOM yet if we are changing top tabs
+                 // The watch on topActiveTab handles re-initialization upon switching back.
+                 return;
+            }
+
+            // Check if editor already exists for this tab
+            if (this.editors[tab.id]) {
+                 this.editors[tab.id].setValue(tab.kwargs, -1);
+                 return;
+            }
+
+            const editor = ace.edit(el, {
+                mode: "ace/mode/json",
+                theme: "ace/theme/twilight",
+                fontSize: "14px",
+                tabSize: 2,
+                useSoftTabs: true,
+                showPrintMargin: false,
+                wrap: true,
+            });
+
+            editor.setValue(tab.kwargs || '{}', -1);
+
+            // Link editor content back to Vue model
+            editor.on('change', () => {
+                tab.kwargs = editor.getValue();
+            });
+
+            this.editors[tab.id] = editor;
+        },
+        prettyJSON(index) {
+            const tab = this.tabs[index];
+            try {
+                const obj = JSON.parse(tab.kwargs);
+                this.editors[tab.id].setValue(JSON.stringify(obj, null, 2), -1);
+            } catch {
+                tab.response = 'Invalid JSON: cannot reformat.';
+            }
+        },
+        clearJSON(index) {
+            this.editors[this.tabs[index].id].setValue('{}', -1);
+        },
+        parseArguments(input) {
+            if (!input.trim()) return [];
+
+            // Regex to split by space, respecting quotes for multi-word args
+            const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
+            const args = [];
+            let match;
+
+            while ((match = regex.exec(input)) !== null) {
+                // match[1] or match[2] captures quoted group, match[0] is unquoted
+                args.push(match[1] || match[2] || match[0]);
+            }
+            return args.map(arg => {
+                // Attempt to parse non-string values like numbers or boolean
+                if (arg === 'true') return true;
+                if (arg === 'false') return false;
+                if (!isNaN(arg) && arg.trim() !== '') return Number(arg);
+                return arg;
+            });
+        },
+        sendRequest(index) {
+            const tab = this.tabs[index];
+            let kwargsObj;
+            tab.loading = true;
+            tab.response = 'Sending request...';
+
+            try {
+                kwargsObj = JSON.parse(tab.kwargs);
+            } catch {
+                tab.response = 'Invalid JSON in Kwargs field.';
+                tab.loading = false;
+                return;
+            }
+            console.log(this.fetcher.taskId)
+            if (!this.fetcher.taskId) {
+                alert('Task id not set')
+                tab.loading = false;
+                return
+            }
+            kwargsObj.task_id = this.fetcher.taskId;
+
+            const args = this.parseArguments(tab.argsInput);
+            const payload = { action: tab.action, kwargs: kwargsObj };
+
+            if (args.length > 0) {
+                payload.args = args;
+            }
+            console.log(JSON.stringify(payload, null, 2))
+
+            fetch(this.endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(res => res.text())
+                .then(text => {
+                    tab.response = text;
+                    try {
+                        tab.response = JSON.stringify(JSON.parse(text), null, 2);
+                    } catch (e) {
+                        // If JSON.parse fails, keep raw text
+                    }
+                })
+                .catch(err => {
+                    tab.response = 'Network Error: ' + err.message;
+                })
+                .finally(() => {
+                    tab.loading = false;
+                });
+        },
+
+        fetchActions() {
+            this.fetcher.loading = true;
+            this.fetcher.items = [];
+            this.fetcher.response = null;
+            this.fetcher.responseText = '';
+            this.fetcher.isResponseCollapsed = true;
+
+            const payload = {
+                action: "actions.get_actions",
+                kwargs: {
+                    app_name: this.fetcher.appName,
+                    menu_name: this.fetcher.menuName
+                    // task_id is NOT included here, as it's for fetching actions, not execution
+                }
+            };
+
+            this.fetcher.responseText = 'Sending request for actions...';
+            console.log('ENDPOINT:', this.endpoint)
+            console.log(JSON.stringify(payload, null, 2))
+            fetch(this.endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.text())
+            .then(text => {
+                this.fetcher.responseText = text;
+                try {
+                    const obj = JSON.parse(text);
+                    this.fetcher.response = obj;
+
+                    if (obj && Array.isArray(obj.items)) {
+                        this.fetcher.items = obj.items;
+                    } else {
+                        this.fetcher.items = [];
+                    }
+                } catch (e) {
+                    this.fetcher.response = { error: "Failed to parse JSON response." };
+                    this.fetcher.items = [];
+                }
+            })
+            .catch(err => {
+                this.fetcher.responseText = 'Network Error: ' + err.message;
+            })
+            .finally(() => {
+                this.fetcher.loading = false;
+            });
+        },
+
+        handleActionClick(item) {
+            const action = item.action;
+            const args = item.args || [];
+            const kwargs = item.kwargs || {};
+
+            this.fetcher.responseText = 'Executing action...';
+            this.fetcher.loading = true;
+            this.fetcher.isResponseCollapsed = false;
+
+            let payloadKwargs = { ...kwargs };
+            if (!this.fetcher.taskId) {
+                alert('Task ID not set')
+                this.fetcher.loading = false;
+                return;
+            }
+            payloadKwargs.task_id = this.fetcher.taskId;
+
+            const payload = {
+                action: action,
+                kwargs: payloadKwargs
+            };
+
+            if (args.length > 0) {
+                payload.args = args;
+            }
+            console.log('ENDPOINT:', this.endpoint)
+            console.log(JSON.stringify(payload, null, 2))
+
+            this.fetcher.responseText = `Executing action: ${action}\nPayload:\n${JSON.stringify(payload, null, 2)}`;
+
+            fetch(this.endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.text())
+            .then(text => {
+                let formattedText = text;
+                try {
+                    formattedText = JSON.stringify(JSON.parse(text), null, 2);
+                } catch (e) {
+                    alert(e)
+                }
+                this.fetcher.responseText = `Response from ${action}:\n\n${formattedText}`;
+            })
+            .catch(err => {
+                this.fetcher.responseText = 'Network Error during action execution: ' + err.message;
+            })
+            .finally(() => {
+                this.fetcher.loading = false;
+            });
+        }
     }
-  }
 }).mount('#app');
 </script>
 </body>
