@@ -37,7 +37,7 @@ class BrokerService(ThreadServicePlugin):
         self.worker_thread = Thread(target=self.sync_worker)
         self.worker_thread.start()
         # start async local server
-        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', s.get('agio_broker.port'))
+        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', s.get('agio_broker.port', 8877))
         self.broker_server.start()
 
     def stop(self):
@@ -87,4 +87,12 @@ class BrokerService(ThreadServicePlugin):
         action_func = actions.get_action_func(action_name_full)
         args = request['data'].get('args', [])
         kwargs = request['data'].get('kwargs', {})
-        return action_func(*args, **kwargs)
+        try:
+            return action_func(*args, **kwargs)
+        except Exception as e:
+            print('-'*25)
+            traceback.print_exc()
+            print('-'*25)
+            from agio.tools import qt
+
+            qt.show_message_dialog(str(e), 'Error', 'error')  # todo: replace with emit event
