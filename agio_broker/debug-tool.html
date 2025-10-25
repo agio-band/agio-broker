@@ -137,10 +137,15 @@
 
                 <!-- Row 2: Task ID full width -->
                 <div class="row g-3">
-                    <div class="col-12">
-                        <label class="form-label">Task ID (Optional) (for action execution)</label>
-                        <input v-model="fetcher.taskId" type="text" class="form-control" placeholder="12345">
+                    <div class="col-6">
+                        <label class="form-label">Task ID (for action execution)</label>
+                        <input v-model="fetcher.taskId" type="text" class="form-control" placeholder="UUID">
                     </div>
+                    <div class="col-6">
+                        <label class="form-label">Project ID (for action listing)</label>
+                        <input v-model="fetcher.projectId" type="text" class="form-control" placeholder="UUID">
+                    </div>
+
                 </div>
 
                 <button type="submit" class="btn btn-success mt-3" :disabled="fetcher.loading">
@@ -214,6 +219,7 @@ createApp({
                 menuName: 'tools', // Default value
                 appName: 'front', // Default value
                 taskId: '',
+                projectId: '',
                 loading: false,
                 response: null,
                 responseText: '',
@@ -236,6 +242,7 @@ createApp({
                     this.fetcher.menuName = state.fetcher.menuName || this.fetcher.menuName;
                     this.fetcher.appName = state.fetcher.appName || this.fetcher.appName;
                     this.fetcher.taskId = state.fetcher.taskId || '';
+                    this.fetcher.projectId = state.fetcher.projectId || '';
                 }
             } catch (e) {
                 console.error("Failed to load state from localStorage:", e);
@@ -268,6 +275,7 @@ createApp({
         'fetcher.menuName': { handler() { this.saveState(); } },
         'fetcher.appName': { handler() { this.saveState(); } },
         'fetcher.taskId': { handler() { this.saveState(); } },
+        'fetcher.projectId': { handler() { this.saveState(); } },
     },
     methods: {
         saveState() {
@@ -279,7 +287,8 @@ createApp({
                 fetcher: {
                     menuName: this.fetcher.menuName,
                     appName: this.fetcher.appName,
-                    taskId: this.fetcher.taskId
+                    taskId: this.fetcher.taskId,
+                    projectId: this.fetcher.projectId
                 }
             }));
         },
@@ -431,8 +440,8 @@ createApp({
                 action: "actions.get_actions",
                 kwargs: {
                     app_name: this.fetcher.appName,
-                    menu_name: this.fetcher.menuName
-                    // task_id is NOT included here, as it's for fetching actions, not execution
+                    menu_name: this.fetcher.menuName,
+                    project_id: this.fetcher.projectId
                 }
             };
 
