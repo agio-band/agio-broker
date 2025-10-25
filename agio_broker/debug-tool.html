@@ -493,11 +493,18 @@ createApp({
                 this.fetcher.loading = false;
                 return;
             }
+            if (!this.fetcher.projectId) {
+                alert('Project ID not set')
+                this.fetcher.loading = false;
+                return;
+            }
+
             payloadKwargs.task_id = this.fetcher.taskId;
 
             const payload = {
                 action: action,
-                kwargs: payloadKwargs
+                kwargs: payloadKwargs,
+                project_id: this.fetcher.projectId
             };
 
             if (args.length > 0) {

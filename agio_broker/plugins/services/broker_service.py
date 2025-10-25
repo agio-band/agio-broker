@@ -1,13 +1,18 @@
+import json
 import logging
 import os
 import traceback
 from queue import Queue, Empty
 from threading import Thread
+import click
 
+from agio.core.entities.project import AProject
 from agio.core.utils import store, actions
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
+from agio.core.utils.launch_utils import exec_agio_command
 from agio.core.utils.process_utils import process_exists
+from agio.core.utils import args_helper
 from agio.core import settings
 from agio_broker.lib.server import BrokerServer
 
@@ -34,7 +39,7 @@ class BrokerService(ThreadServicePlugin):
     def execute(self, **kwargs):
         s = settings.get_local_settings()
         # start requests receiver
-        self.worker_thread = Thread(target=self.sync_worker)
+        self.worker_thread = Thread(target=self.sync_worker, name='broker_worker')
         self.worker_thread.start()
         # start async local server
         self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', s.get('agio_broker.port', 8877))
@@ -80,19 +85,35 @@ class BrokerService(ThreadServicePlugin):
                 raise Exception('Unknown request')
 
     def execute_action(self, request: dict) -> dict | None:
-        action_name_full = request['data'].get('action')
-        logger.debug('Executing action %s', action_name_full)
-        if not action_name_full:
-            raise Exception('Action name not set')
-        action_func = actions.get_action_func(action_name_full)
-        args = request['data'].get('args', [])
-        kwargs = request['data'].get('kwargs', {})
-        try:
-            return action_func(*args, **kwargs)
-        except Exception as e:
-            print('-'*25)
-            traceback.print_exc()
-            print('-'*25)
-            from agio.tools import qt
+        action_data = request['data']
 
-            qt.show_message_dialog(str(e), 'Error', 'error')  # todo: replace with emit event
+        project_id = action_data.get('project_id')
+        if project_id:
+            # execute action as command with different workspace
+            project = AProject(project_id)
+            workspace = project.get_workspace()
+            if not workspace:
+                raise Exception(f'Project {project.name} has no workspace')
+            click.secho(f'Executing action with project {project_id}', fg='yellow')
+            args = args_helper.dict_to_args(action_data['kwargs'])
+            cmd = [
+                'action', action_data['action'],
+                *args
+            ]
+            logger.debug(f'Launch CMD: {" ".join(cmd)}' )
+            exec_agio_command(cmd, workspace=workspace.id, detached=True)
+        else:
+            action_name_full = action_data.get('action')
+            logger.debug('Executing action %s', action_name_full)
+            if not action_name_full:
+                raise Exception('Action name not set')
+            action_func = actions.get_action_func(action_name_full)
+            args = action_data.get('args', [])
+            kwargs = action_data.get('kwargs', {})
+            try:
+                return action_func(*args, **kwargs)
+            except Exception as e:
+                traceback.print_exc()
+                from agio.tools import qt
+
+                qt.show_message_dialog(str(e), 'Error', 'error')  # todo: replace with emit event
