@@ -86,7 +86,6 @@ class BrokerService(ThreadServicePlugin):
 
     def execute_action(self, request: dict) -> dict | None:
         action_data = request['data']
-
         project_id = action_data.get('project_id')
         if project_id:
             # execute action as command with different workspace
@@ -94,14 +93,19 @@ class BrokerService(ThreadServicePlugin):
             workspace = project.get_workspace()
             if not workspace:
                 raise Exception(f'Project {project.name} has no workspace')
-            click.secho(f'Executing action with project {project_id}', fg='yellow')
+            logger.debug(f'Executing action '
+                         f'with project {project.code} ({project_id}) in workspace {workspace.name} ({workspace.id})')
             args = args_helper.dict_to_args(action_data['kwargs'])
             cmd = [
                 'action', action_data['action'],
                 *args
             ]
-            logger.debug(f'Launch CMD: {" ".join(cmd)}' )
-            exec_agio_command(cmd, workspace=workspace.id, detached=True)
+            logger.info(f'Launch CMD: {" ".join(cmd)}' )
+            result = exec_agio_command(cmd, workspace=workspace.id, use_custom_pipe=True)
+            try:
+                return json.loads(result)
+            except (json.decoder.JSONDecodeError, TypeError):
+                return result
         else:
             action_name_full = action_data.get('action')
             logger.debug('Executing action %s', action_name_full)
@@ -114,6 +118,7 @@ class BrokerService(ThreadServicePlugin):
                 return action_func(*args, **kwargs)
             except Exception as e:
                 traceback.print_exc()
+
                 from agio.tools import qt
 
                 qt.show_message_dialog(str(e), 'Error', 'error')  # todo: replace with emit event
