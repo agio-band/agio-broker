@@ -122,3 +122,4 @@ class BrokerService(ThreadServicePlugin):
                 from agio.tools import qt
 
                 qt.show_message_dialog(str(e), 'Error', 'error')  # todo: replace with emit event
+                return {'error': str(e)}

@@ -201,7 +201,7 @@ const { createApp, nextTick } = Vue;
 createApp({
     data() {
         return {
-            endpoint: 'http://localhost:8877/action',
+            endpoint: 'http://127.0.0.1:8877/action',
             // Top-level state
             topActiveTab: 0,
             topTabs: [
@@ -442,7 +442,7 @@ createApp({
                     app_name: this.fetcher.appName,
                     menu_name: this.fetcher.menuName,
                     project_id: this.fetcher.projectId
-                }
+                },
             };
 
             this.fetcher.responseText = 'Sending request for actions...';

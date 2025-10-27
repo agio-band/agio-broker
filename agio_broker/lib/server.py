@@ -177,7 +177,13 @@ class BrokerServer:
         await writer.wait_closed()
 
     def with_head(self, data: dict, code: int = 200, extra_headers: dict = None) -> str:
-        data_bytes = json.dumps(data, ensure_ascii=False, indent=2)
+        if isinstance(data, dict):
+            data_bytes = json.dumps(data, ensure_ascii=False)
+        else:
+            if not data:
+                data_bytes = "{}"
+            else:
+                data_bytes = data
         headers = {
             "Content-Type": "application/json; charset=utf-8",
             "Content-Length": str(len(data_bytes)),
