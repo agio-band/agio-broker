@@ -1,5 +1,5 @@
 name: agio_broker
-version: 0.0.1
+version: 0.0.2
 label: agio Message Broker
 description: |
   Message broker for localhost
@@ -12,7 +12,7 @@ urls:
   bug_tracker: ""
 
 agio_package_dependencies: [
-  'agio-core==0.0.1'
+  'agio-core>=0.0.2'
 ]
 
 plugins:
