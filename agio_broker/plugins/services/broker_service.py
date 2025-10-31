@@ -4,15 +4,15 @@ import os
 import traceback
 from queue import Queue, Empty
 from threading import Thread
-import click
 
+import agio.core.actions
 from agio.core.entities.project import AProject
-from agio.core.utils import store, actions
+from agio.tools import store
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
-from agio.core.utils.launch_utils import exec_agio_command
-from agio.core.utils.process_utils import process_exists
-from agio.core.utils import args_helper
+from agio.tools.launching import exec_agio_command
+from agio.tools.process_utils import process_exists
+from agio.tools import args_helper
 from agio.core import settings
 from agio_broker.lib.server import BrokerServer
 
@@ -111,7 +111,7 @@ class BrokerService(ThreadServicePlugin):
             logger.debug('Executing action %s', action_name_full)
             if not action_name_full:
                 raise Exception('Action name not set')
-            action_func = actions.get_action_func(action_name_full)
+            action_func = agio.core.actions.get_action_func(action_name_full)
             args = action_data.get('args', [])
             kwargs = action_data.get('kwargs', {})
             try:
