@@ -11,7 +11,7 @@ urls:
   documentation: "https://github.com/agio-band/agio-broker"
   bug_tracker: ""
 
-agio_package_dependencies: [
+required_packages: [
   'agio-core>=0.0.2'
 ]
 
