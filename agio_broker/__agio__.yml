@@ -1,5 +1,4 @@
 name: agio_broker
-version: 0.0.2
 label: agio Message Broker
 description: |
   Message broker for localhost
