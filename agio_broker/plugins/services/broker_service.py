@@ -7,6 +7,7 @@ from threading import Thread
 
 import agio.core.actions
 from agio.core.entities.project import AProject
+from agio.core.events import emit
 from agio.tools import store
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
@@ -77,18 +78,28 @@ class BrokerService(ThreadServicePlugin):
                 self.broker_server.loop.call_soon_threadsafe(future.set_result, response)
 
     def process_request(self, request: dict) -> dict | None:
+        """
+        Supported functions:
+        - action
+        ...
+        """
         function = request['path'].strip('/').split('/')[0]
-        match function:
-            case 'action':
-                return self.execute_action(request)
-            case _:
-                raise Exception('Unknown request')
+        try:
+            match function:
+                case 'action':
+                    # execute remote action
+                    return self.execute_action(request)
+                case _:
+                    raise Exception('Unknown request')
+        except Exception as e:
+            logger.exception('Failed to execute broker request')
+            emit('core.message.error', {'message': str(e)})
 
     def execute_action(self, request: dict) -> dict | None:
         action_data = request['data']
         project_id = action_data.get('project_id')
         if project_id:
-            # execute action as command with different workspace
+            # execute action as command with different workspace using project id
             project = AProject(project_id)
             workspace = project.get_workspace()
             if not workspace:
@@ -117,9 +128,6 @@ class BrokerService(ThreadServicePlugin):
             try:
                 return action_func(*args, **kwargs)
             except Exception as e:
-                traceback.print_exc()
-
-                from agio.tools import qt
-
-                qt.show_message_dialog(str(e), 'Error', 'error')  # todo: replace with emit event
+                logger.exception('Failed to execute action function')
+                emit('core.message.error', {'message': str(e)})
                 return {'error': str(e)}
