@@ -5,17 +5,20 @@ import traceback
 from queue import Queue, Empty
 from threading import Thread
 
+from agio_broker.lib.server import BrokerServer
+from agio_broker.lib.response_model import ActionResponseModel
+from pydantic import BaseModel
+
 import agio.core.actions
+from agio.core import settings
 from agio.core.entities.project import AProject
 from agio.core.events import emit
-from agio.tools import store
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
+from agio.tools import args_helper
+from agio.tools import store
 from agio.tools.launching import exec_agio_command
 from agio.tools.process_utils import process_exists
-from agio.tools import args_helper
-from agio.core import settings
-from agio_broker.lib.server import BrokerServer
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +71,16 @@ class BrokerService(ThreadServicePlugin):
                 continue
             request_id = task['id']
             try:
-                response = self.process_request(task)
+                result = self.process_request(task)
+                response = ActionResponseModel(
+                    ok=True,
+                    result=result,
+                ).model_dump()
             except Exception as e:
-                response = {"error": str(e)}
+                response = ActionResponseModel(
+                    ok=False,
+                    message=str(e),
+                ).model_dump()
                 traceback.print_exc()
 
             future = self.response_map.get(request_id)
@@ -126,8 +136,11 @@ class BrokerService(ThreadServicePlugin):
             args = action_data.get('args', [])
             kwargs = action_data.get('kwargs', {})
             try:
-                return action_func(*args, **kwargs)
+                resp = action_func(*args, **kwargs)
+                if isinstance(resp, BaseModel):
+                    resp = resp.model_dump()
+                return resp
             except Exception as e:
                 logger.exception('Failed to execute action function')
                 emit('core.message.error', {'message': str(e)})
-                return {'error': str(e)}
+                raise
