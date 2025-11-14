@@ -142,8 +142,8 @@
                         <input v-model="fetcher.taskId" type="text" class="form-control" placeholder="UUID">
                     </div>
                     <div class="col-6">
-                        <label class="form-label">Project ID (for action listing)</label>
-                        <input v-model="fetcher.projectId" type="text" class="form-control" placeholder="UUID">
+                        <label class="form-label">Workspace ID / Revision ID</label>
+                        <input v-model="fetcher.wsId" type="text" class="form-control" placeholder="UUID">
                     </div>
 
                 </div>
@@ -219,7 +219,7 @@ createApp({
                 menuName: 'tools', // Default value
                 appName: 'front', // Default value
                 taskId: '',
-                projectId: '',
+                wsId: '',
                 loading: false,
                 response: null,
                 responseText: '',
@@ -242,7 +242,7 @@ createApp({
                     this.fetcher.menuName = state.fetcher.menuName || this.fetcher.menuName;
                     this.fetcher.appName = state.fetcher.appName || this.fetcher.appName;
                     this.fetcher.taskId = state.fetcher.taskId || '';
-                    this.fetcher.projectId = state.fetcher.projectId || '';
+                    this.fetcher.wsId = state.fetcher.wsId || '';
                 }
             } catch (e) {
                 console.error("Failed to load state from localStorage:", e);
@@ -275,7 +275,7 @@ createApp({
         'fetcher.menuName': { handler() { this.saveState(); } },
         'fetcher.appName': { handler() { this.saveState(); } },
         'fetcher.taskId': { handler() { this.saveState(); } },
-        'fetcher.projectId': { handler() { this.saveState(); } },
+        'fetcher.wsId': { handler() { this.saveState(); } },
     },
     methods: {
         saveState() {
@@ -288,7 +288,7 @@ createApp({
                     menuName: this.fetcher.menuName,
                     appName: this.fetcher.appName,
                     taskId: this.fetcher.taskId,
-                    projectId: this.fetcher.projectId
+                    wsId: this.fetcher.wsId
                 }
             }));
         },
@@ -441,8 +441,8 @@ createApp({
                 kwargs: {
                     app_name: this.fetcher.appName,
                     menu_name: this.fetcher.menuName,
-                    project_id: this.fetcher.projectId
                 },
+                workspace_id: this.fetcher.wsId
             };
 
             this.fetcher.responseText = 'Sending request for actions...';
@@ -458,10 +458,10 @@ createApp({
                 this.fetcher.responseText = text;
                 try {
                     const obj = JSON.parse(text);
-                    this.fetcher.response = obj;
-
-                    if (obj && Array.isArray(obj.items)) {
-                        this.fetcher.items = obj.items;
+                    this.fetcher.response = obj.data;
+                    console.log(JSON.stringify(obj.data, null, 2))
+                    if (obj && Array.isArray(obj.data.items)) {
+                        this.fetcher.items = obj.data.items;
                     } else {
                         this.fetcher.items = [];
                     }
@@ -493,8 +493,8 @@ createApp({
                 this.fetcher.loading = false;
                 return;
             }
-            if (!this.fetcher.projectId) {
-                alert('Project ID not set')
+            if (!this.fetcher.wsId) {
+                alert('Workspace ID not set')
                 this.fetcher.loading = false;
                 return;
             }
@@ -504,7 +504,7 @@ createApp({
             const payload = {
                 action: action,
                 kwargs: payloadKwargs,
-                project_id: this.fetcher.projectId
+                workspace_id: this.fetcher.wsId
             };
 
             if (args.length > 0) {

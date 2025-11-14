@@ -1,18 +1,21 @@
 import asyncio
-import logging
-import traceback
-import urllib.parse
 import json
+import logging
 import re
 import threading
-import time
+import urllib.parse
 import uuid
+from http import HTTPStatus
 from queue import Queue
+
+from agio_broker.lib import models
+from agio_broker.lib.exceptions import ActionInProgressError
 
 logger = logging.getLogger(__name__)
 
 
 class BrokerServer:
+    REQUEST_TIMEOUT = 30
     def __init__(self, queue: Queue, response_map: dict, host='127.0.0.1', port=8080):
         self.host = host
         self.port = port
@@ -60,6 +63,97 @@ class BrokerServer:
             asyncio.run_coroutine_threadsafe(shutdown(), self.loop)
             self.thread.join()
             logger.debug("Broker server stopped.")
+
+    async def handle_request(self, reader, writer):
+        try:
+            await self.handle_client(reader, writer)
+        except ActionInProgressError:
+            warning_response = models.ActionResponseModel(
+                status=models.Status.PROCESSING,
+                message='Action was in progress.',
+            )
+            writer.write(
+                self._with_head(
+                    data=warning_response.model_dump(mode='json'),
+                    code=500
+                ).encode('utf-8', errors='ignore')
+            )
+        except Exception as e:
+            logger.exception('Request failed')
+            error_response = models.ActionResponseModel(
+                status=models.Status.ERROR,
+                message=str(e),
+            )
+            writer.write(
+                self._with_head(
+                    data=error_response.model_dump(mode='json'),
+                    code=500
+                ).encode('utf-8', errors='ignore')
+            )
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    async def handle_client(self, reader, writer):
+        data = await reader.read(65536)
+        request = data.decode('utf-8', errors='ignore')
+        try:
+            header_section, body = request.split('\r\n\r\n', 1)
+        except ValueError:
+            logger.warning(f"Bad request: {request}")
+            return
+
+        request_lines = header_section.split('\r\n')
+        request_line = request_lines[0]
+        method, path, _ = request_line.split(' ', 2)
+        headers = self._parse_headers(request_lines[1:])
+
+        if method == "OPTIONS":
+            response = (
+                "HTTP/1.1 204 No Content\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+                "Access-Control-Allow-Headers: Content-Type\r\n"
+                "Content-Length: 0\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            )
+            writer.write(response.encode("utf-8"))
+            return
+
+        parsed_body, files = await self._decode_body(headers, body)
+        request = models.ActionRequestModel(**parsed_body)
+        query = self._parse_query_string(path)
+        request_id = uuid.uuid4().hex
+        payload = {
+            "id": request_id,
+            "method": method,
+            "path": path,
+            "query": query,
+            "data": request.model_dump(mode="json"),
+            "files": files,
+        }
+        result = await self.process_request(payload)
+        if result is not None:
+            result = models.ActionResponseModel(
+                status=models.Status.OK,
+                data=result
+            ).model_dump(mode="json")
+        response = self._with_head(result)
+        writer.write(response.encode('utf-8', errors='ignore'))
+
+    async def process_request(self, payload: dict) -> dict|None:
+        future = self.loop.create_future()
+        self.response_map[payload['id']] = future
+        self.queue.put(payload)
+        timeout_sec = payload.get('action_task_timeout', self.REQUEST_TIMEOUT)
+        try:
+            result = await asyncio.wait_for(future, timeout=timeout_sec)
+        except asyncio.TimeoutError as e:
+            raise Exception("Action Task timed out") from e
+        finally:
+            self.response_map.pop(payload['id'], None)
+        return result
 
     def _parse_query_string(self, path):
         parsed = urllib.parse.urlparse(path)
@@ -115,68 +209,7 @@ class BrokerServer:
                 return {}, self._parse_multipart(body, boundary)
         return {}, {}
 
-    async def handle_request(self, reader, writer):
-        try:
-            await self.handle_client(reader, writer)
-        except Exception as e:
-            traceback.print_exc()
-            writer.write(self.with_head(
-                {"error": str(e)},
-                code=500
-            ).encode('utf-8', errors='ignore'))
-            await writer.drain()
-            writer.close()
-            await writer.wait_closed()
-
-    async def handle_client(self, reader, writer):
-        data = await reader.read(65536)
-        request = data.decode('utf-8', errors='ignore')
-        try:
-            header_section, body = request.split('\r\n\r\n', 1)
-        except ValueError:
-            writer.close()
-            return
-
-        request_lines = header_section.split('\r\n')
-        request_line = request_lines[0]
-        method, path, _ = request_line.split(' ', 2)
-        headers = self._parse_headers(request_lines[1:])
-
-        if method == "OPTIONS":
-            response = (
-                "HTTP/1.1 204 No Content\r\n"
-                "Access-Control-Allow-Origin: *\r\n"
-                "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
-                "Access-Control-Allow-Headers: Content-Type\r\n"
-                "Content-Length: 0\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            )
-            writer.write(response.encode("utf-8"))
-            await writer.drain()
-            writer.close()
-            await writer.wait_closed()
-            return
-
-        query = self._parse_query_string(path)
-        parsed_body, files = await self._decode_body(headers, body)
-        request_id = uuid.uuid4().hex
-        payload = {
-            "id": request_id,
-            "method": method,
-            "path": path,
-            "query": query,
-            "data": parsed_body,
-            "files": files,
-        }
-        result = await self.process_request(payload)
-        response = self.with_head(result)
-        writer.write(response.encode('utf-8', errors='ignore'))
-        await writer.drain()
-        writer.close()
-        await writer.wait_closed()
-
-    def with_head(self, data: dict, code: int = 200, extra_headers: dict = None) -> str:
+    def _with_head(self, data: dict, code: int = 200, extra_headers: dict = None) -> str:
         if isinstance(data, dict):
             data_bytes = json.dumps(data, ensure_ascii=False)
         else:
@@ -195,19 +228,5 @@ class BrokerServer:
         if extra_headers:
             headers.update(extra_headers)
         header_str = "\r\n".join(f"{k}: {v}" for k, v in headers.items())
-        return f"HTTP/1.1 {code} OK\r\n{header_str}\r\n\r\n{data_bytes}"
 
-    async def process_request(self, payload: dict) -> dict|None:
-        future = self.loop.create_future()
-        self.response_map[payload['id']] = future
-        self.queue.put(payload)
-        try:
-            result = await asyncio.wait_for(future, timeout=5)
-        except asyncio.TimeoutError:
-            result = {"error": "Request timed out"}
-        except Exception as e:
-            traceback.print_exc()
-            result = {"error": str(e)}
-        finally:
-            self.response_map.pop(payload['id'], None)
-        return result
+        return f"HTTP/1.1 {code} {HTTPStatus(code).phrase}\r\n{header_str}\r\n\r\n{data_bytes}"
