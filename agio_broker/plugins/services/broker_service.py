@@ -101,7 +101,7 @@ class BrokerService(ThreadServicePlugin):
         ws_id = action_data.get('workspace_id')
         if ws_id:
             # execute action as command with different workspace using project id
-            workspace_manager = AWorkspaceManager.create_from_id(ws_id)
+            workspace_manager = AWorkspaceManager.from_id(ws_id)
             logger.info(f'Executing action with workspace {ws_id}')
             args = args_helper.dict_to_args(action_data['kwargs'])
             cmd = [
