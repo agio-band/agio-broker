@@ -11,7 +11,7 @@ urls:
   bug_tracker: ""
 
 required_packages: [
-  'agio_core>=0.0.10'
+  'agio_core>=0.0.13'
 ]
 
 plugins:
