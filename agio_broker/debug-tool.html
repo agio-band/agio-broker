@@ -127,7 +127,7 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Menu Name</label>
-                        <input v-model="fetcher.menuName" type="text" class="form-control" placeholder="tools" required>
+                        <input v-model="fetcher.menuName" type="text" class="form-control" placeholder="task.launcher" required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">App Name</label>
@@ -216,7 +216,7 @@ createApp({
 
             // State for the new tab (Action Fetcher)
             fetcher: {
-                menuName: 'tools', // Default value
+                menuName: 'task.launcher', // Default value
                 appName: 'front', // Default value
                 taskId: '',
                 wsId: '',
@@ -459,7 +459,7 @@ createApp({
                 try {
                     const obj = JSON.parse(text);
                     this.fetcher.response = obj.data;
-                    console.log(JSON.stringify(obj.data, null, 2))
+                    console.log(JSON.stringify(obj, null, 2))
                     if (obj && Array.isArray(obj.data.items)) {
                         this.fetcher.items = obj.data.items;
                     } else {
