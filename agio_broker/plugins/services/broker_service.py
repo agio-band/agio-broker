@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from agio.core import settings
 from agio.core import actions
 from agio.core.entities import AWorkspace
+from agio.core.entities.project import AProject
 from agio.core.events import emit
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
@@ -98,7 +99,7 @@ class BrokerService(ThreadServicePlugin):
 
     def execute_action(self, request: dict) -> dict | None:
         action_data = request['data']
-        ws_id = action_data.get('workspace_id')
+        ws_id = self.get_workspace_id(action_data)
         if ws_id:
             # execute action as command with different workspace using project id
             workspace_manager = AWorkspaceManager.from_id(ws_id)
@@ -126,3 +127,15 @@ class BrokerService(ThreadServicePlugin):
             if isinstance(resp, BaseModel):
                 resp = resp.model_dump(mode='json')
             return resp
+
+    def get_workspace_id(self, action_data: dict) -> str:
+        ws_id = action_data.get('workspace_id')
+        if ws_id:
+            return ws_id
+        project_id = action_data.get('project_id')
+        if project_id:
+            project = AProject(project_id)
+            ws_id = project.workspace_launching_id
+            if not ws_id:
+                raise ValueError(f'Workspace not configured for project {project.name}')
+            return ws_id

@@ -16,6 +16,7 @@ class ActionRequestModel(BaseModel):
     args: list|None = None
     kwargs: dict|None = None
     workspace_id: UUID|None = None
+    project_id: UUID|None = None
 
 
 class ActionResponseModel(BaseModel):
