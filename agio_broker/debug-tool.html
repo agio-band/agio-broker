@@ -88,16 +88,16 @@
         <div v-for="(tab, index) in tabs" v-show="activeTab === index" :key="'panel-'+tab.id" class="card bg-body-tertiary shadow">
             <div class="card-body">
                 <form @submit.prevent="sendRequest(index)" class="vstack gap-3">
+<!--                    <div>-->
+<!--                        <label class="form-label">Action</label>-->
+<!--                        <input v-model="tab.action" type="text" class="form-control" required>-->
+<!--                    </div>-->
+<!--                    <div>-->
+<!--                        <label class="form-label">Arguments (space separated, use quotes for multi-word args)</label>-->
+<!--                        <input v-model="tab.argsInput" type="text" class="form-control" placeholder="arg1 'arg with spaces' arg2">-->
+<!--                    </div>-->
                     <div>
-                        <label class="form-label">Action</label>
-                        <input v-model="tab.action" type="text" class="form-control" required>
-                    </div>
-                    <div>
-                        <label class="form-label">Arguments (space separated, use quotes for multi-word args)</label>
-                        <input v-model="tab.argsInput" type="text" class="form-control" placeholder="arg1 'arg with spaces' arg2">
-                    </div>
-                    <div>
-                        <label class="form-label">Kwargs (JSON)</label>
+                        <label class="form-label">JSON</label>
                         <div :id="'editor-'+tab.id" class="border editor-container"></div>
                     </div>
                     <div class="d-flex gap-2 flex-wrap">
@@ -171,7 +171,7 @@
 <!--                    <small class="text-secondary d-block">Group: {{ item.group || 'N/A' }} | App: {{ item.app_name || 'N/A' }}</small>-->
                     <small class="text-secondary d-block">Action: {{ item.action }}</small>
                     <div class="small mt-1 text-muted text-truncate">
-                        Kwargs: {{ item.kwargs ? JSON.stringify(item.kwargs) : '{}' }}
+                        JSON: {{ item.json ? JSON.stringify(item.json) : '{}' }}
                     </div>
                 </a>
             </div>
@@ -297,9 +297,9 @@ createApp({
             this.tabs.push({
                 id,
                 title: `Tab ${this.tabs.length + 1}`,
-                action: '',
-                argsInput: '',
-                kwargs: '{}',
+                // action: '',
+                // argsInput: '',
+                json: '{}',
                 response: '',
                 loading: false,
             });
@@ -330,7 +330,7 @@ createApp({
 
             // Check if editor already exists for this tab
             if (this.editors[tab.id]) {
-                 this.editors[tab.id].setValue(tab.kwargs, -1);
+                 this.editors[tab.id].setValue(tab.json, -1);
                  return;
             }
 
@@ -344,11 +344,11 @@ createApp({
                 wrap: true,
             });
 
-            editor.setValue(tab.kwargs || '{}', -1);
+            editor.setValue(tab.json || '{}', -1);
 
             // Link editor content back to Vue model
             editor.on('change', () => {
-                tab.kwargs = editor.getValue();
+                tab.json = editor.getValue();
             });
 
             this.editors[tab.id] = editor;
@@ -356,7 +356,7 @@ createApp({
         prettyJSON(index) {
             const tab = this.tabs[index];
             try {
-                const obj = JSON.parse(tab.kwargs);
+                const obj = JSON.parse(tab.json);
                 this.editors[tab.id].setValue(JSON.stringify(obj, null, 2), -1);
             } catch {
                 tab.response = 'Invalid JSON: cannot reformat.';
@@ -392,19 +392,14 @@ createApp({
             tab.response = 'Sending request...';
 
             try {
-                kwargsObj = JSON.parse(tab.kwargs);
+                kwargsObj = JSON.parse(tab.json);
             } catch {
                 tab.response = 'Invalid JSON in Kwargs field.';
                 tab.loading = false;
                 return;
             }
             console.log(kwargsObj)
-            const args = this.parseArguments(tab.argsInput);
-            const payload = { action: tab.action, kwargs: kwargsObj };
-
-            if (args.length > 0) {
-                payload.args = args;
-            }
+            const payload = kwargsObj;
             console.log(JSON.stringify(payload, null, 2))
 
             fetch(this.endpoint, {
