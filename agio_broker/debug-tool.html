@@ -442,7 +442,7 @@ createApp({
                     app_name: this.fetcher.appName,
                     menu_name: this.fetcher.menuName,
                 },
-                workspace_id: this.fetcher.wsId
+                workspace_id: this.fetcher.wsId || null
             };
 
             this.fetcher.responseText = 'Sending request for actions...';
@@ -493,20 +493,14 @@ createApp({
                 this.fetcher.loading = false;
                 return;
             }
-            if (!this.fetcher.wsId) {
-                alert('Workspace ID not set')
-                this.fetcher.loading = false;
-                return;
-            }
 
             payloadKwargs.task_id = this.fetcher.taskId;
 
             const payload = {
                 action: action,
                 kwargs: payloadKwargs,
-                workspace_id: this.fetcher.wsId
+                workspace_id: this.fetcher.wsId || null,
             };
-
             if (args.length > 0) {
                 payload.args = args;
             }
