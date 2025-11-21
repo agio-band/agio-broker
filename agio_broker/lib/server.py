@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class BrokerServer:
-    REQUEST_TIMEOUT = 30
+    REQUEST_TIMEOUT = 180
     def __init__(self, queue: Queue, response_map: dict, host='127.0.0.1', port=8080):
         self.host = host
         self.port = port
