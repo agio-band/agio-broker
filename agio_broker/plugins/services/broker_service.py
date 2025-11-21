@@ -109,8 +109,8 @@ class BrokerService(ThreadServicePlugin):
                 'action', action_data['action'],
                 *args
             ]
-            logger.info(f'Launch CMD: {" ".join(cmd)}' )
-            result = launching.exec_agio_command(cmd, workspace=workspace_manager.workspace_id, use_custom_pipe=True)
+            logger.info(f'Launch CMD: {" ".join(cmd)} with WS ID: {workspace_manager.launching_id}' )
+            result = launching.exec_agio_command(cmd, workspace=workspace_manager.launching_id, use_custom_pipe=True)
             try:
                 return json.loads(result)
             except (json.decoder.JSONDecodeError, TypeError):
