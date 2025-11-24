@@ -10,7 +10,7 @@ from agio.core import settings
 from agio.core import actions
 from agio.core.entities import AWorkspace
 from agio.core.entities.project import AProject
-from agio.core.events import emit
+from agio.core.events import emit, subscribe_manager
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
 from agio.core.workspaces import AWorkspaceManager
@@ -29,6 +29,8 @@ class BrokerService(ThreadServicePlugin):
         self.broker_server = None
         self.response_map = {}
         self.worker_thread = None
+        self.port = settings.get_local_settings().get('agio_broker.port', 8877)
+
 
     def before_start(self):
         # check if broker already running
@@ -38,12 +40,12 @@ class BrokerService(ThreadServicePlugin):
         store.set('broker_pid', os.getpid())
 
     def execute(self, **kwargs):
-        s = settings.get_local_settings()
+        os.environ['AGIO_IS_BROKER_SERVER'] = 'true'
         # start requests receiver
         self.worker_thread = Thread(target=self.sync_worker, name='broker_worker')
         self.worker_thread.start()
         # start async local server
-        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', s.get('agio_broker.port', 8877))
+        self.broker_server = BrokerServer(self.queue, self.response_map, '127.0.0.1', self.port)
         self.broker_server.start()
 
     def stop(self):
@@ -73,7 +75,7 @@ class BrokerService(ThreadServicePlugin):
             future = self.response_map.get(request_id)
             if future and not future.done():
                 try:
-                    result = self.process_request(task)
+                    result = self.process_request(task, request_id)
                     self.broker_server.loop.call_soon_threadsafe(future.set_result, result)
                 except Exception as err:
                     emit('core.message.error', {'message': str(err)})
@@ -83,7 +85,7 @@ class BrokerService(ThreadServicePlugin):
             else:
                 logger.error('Task future not created or already done. Executing skipped.')
 
-    def process_request(self, request: dict) -> dict | None:
+    def process_request(self, request: dict, request_id: str) -> dict | None:
         """
         Supported functions:
         - action: execute remote action
@@ -92,12 +94,12 @@ class BrokerService(ThreadServicePlugin):
         match function:
             case 'action':
                 # execute remote action
-                return self.execute_action(request)
+                return self.execute_action(request, request_id)
             case _:
                 raise Exception('Function not found: {function}')
 
 
-    def execute_action(self, request: dict) -> dict | None:
+    def execute_action(self, request: dict, request_id: str) -> dict | None:
         action_data = request['data']
         ws_id = self.get_workspace_id(action_data)
         if ws_id:
@@ -110,7 +112,15 @@ class BrokerService(ThreadServicePlugin):
                 *args
             ]
             logger.info(f'Launch CMD: {" ".join(cmd)} with WS ID: {workspace_manager.launching_id}' )
-            result = launching.exec_agio_command(cmd, workspace=workspace_manager.launching_id, use_custom_pipe=True)
+            envs = {'AGIO_ACTION_REQUEST_ID': request_id}
+            with subscribe_manager(
+                    'core.workspace.before_install',
+                    lambda payload: actions.execute_action('desk.show_message', text="Workspace creation is started. Please wait...")):
+                result = launching.exec_agio_command(
+                    cmd,
+                    envs=envs,
+                    workspace=workspace_manager.launching_id,
+                    use_custom_pipe=True)
             try:
                 return json.loads(result)
             except (json.decoder.JSONDecodeError, TypeError):
