@@ -1,6 +1,6 @@
 [project]
 name = "agio-broker"
-version = "0.0.12"
+version = "0.0.13"
 requires-python = ">=3.11"
 dependencies = []
 
@@ -10,4 +10,5 @@ include-package-data = true
 [tool.setuptools.package-data]
 "agio_broker" = [
     "__agio__.yml",
+    "package_settings/*.yml",
 ]
