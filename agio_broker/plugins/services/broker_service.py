@@ -14,7 +14,7 @@ from agio.core.events import emit, subscribe_manager
 from agio.core.exceptions import ServiceStartupError
 from agio.core.plugins.base_service import make_action, ThreadServicePlugin
 from agio.core.workspaces import AWorkspaceManager
-from agio.tools import args_helper, store, launching, process_utils
+from agio.tools import args_helper, get_store, launching, process_utils
 from agio_broker.lib.server import BrokerServer
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ class BrokerService(ThreadServicePlugin):
 
     def before_start(self):
         # check if broker already running
+        store = get_store()
         pid = store.get('broker_pid')
         if pid and process_utils.process_exists(pid):
             raise ServiceStartupError('Broker service is already running')
@@ -138,7 +139,7 @@ class BrokerService(ThreadServicePlugin):
                 resp = resp.model_dump(mode='json')
             return resp
 
-    def get_workspace_id(self, action_data: dict) -> str:
+    def get_workspace_id(self, action_data: dict) -> str|None:
         ws_id = action_data.get('workspace_id')
         if ws_id:
             return ws_id
@@ -149,3 +150,4 @@ class BrokerService(ThreadServicePlugin):
             if not ws_id:
                 raise ValueError(f'Workspace not configured for project {project.name}')
             return ws_id
+        return None
