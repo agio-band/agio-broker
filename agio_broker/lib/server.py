@@ -97,10 +97,12 @@ class BrokerServer:
     async def handle_client(self, reader, writer):
         data = await reader.read(65536)
         request = data.decode('utf-8', errors='ignore')
+        if not request.strip():
+            return 
         try:
             header_section, body = request.split('\r\n\r\n', 1)
-        except ValueError:
-            logger.warning(f"Bad request: {request}")
+        except ValueError as e:
+            logger.warning(f"{e}: {request!r}")
             return
 
         request_lines = header_section.split('\r\n')
