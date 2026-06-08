@@ -1,4 +1,4 @@
-from enum import StrEnum
+from agio.tools.enum import StrEnum
 from typing import Any
 from uuid import UUID
 
