@@ -12,7 +12,8 @@ from agio.core.entities import AWorkspace
 from agio.core.entities.project import AProject
 from agio.core.events import emit, subscribe_manager
 from agio.core.exceptions import ServiceStartupError
-from agio.core.plugins.base_service import make_action, ThreadServicePlugin
+from agio.core.plugins.base_service import ThreadServicePlugin
+from agio.core.actions import make_action
 from agio.core.workspaces import AWorkspaceManager
 from agio.tools import args_helper, get_store, launching, process_utils
 from agio_broker.lib.server import BrokerServer
