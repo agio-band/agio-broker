@@ -1,21 +1,25 @@
 import asyncio
 import json
 import logging
+import mimetypes
+import os
 import re
 import threading
 import urllib.parse
 import uuid
 from http import HTTPStatus
 from queue import Queue
-
+from urllib.parse import urlparse
 from agio_broker.lib import models
 from agio_broker.lib.exceptions import ActionInProgressError
+from agio_broker.lib.resource_solver import get_resource_by_path
 
 logger = logging.getLogger(__name__)
 
 
 class BrokerServer:
     REQUEST_TIMEOUT = 180
+    CHUNK_SIZE = 64 * 1024
     def __init__(self, queue: Queue, response_map: dict, host='127.0.0.1', port=8080):
         self.host = host
         self.port = port
@@ -122,27 +126,98 @@ class BrokerServer:
             )
             writer.write(response.encode("utf-8"))
             return
+        elif method == 'POST':
+            parsed_body, files = await self._decode_body(headers, body)
+            request = models.ActionRequestModel(**parsed_body)
+            query = self._parse_query_string(path)
+            request_id = uuid.uuid4().hex
+            payload = {
+                "id": request_id,
+                "method": method,
+                "path": urlparse(path).path,
+                "query": query,
+                "data": request.model_dump(mode="json"),
+                "files": files,
+            }
+            result = await self.process_request(payload)
+            if result is not None:
+                result = models.ActionResponseModel(
+                    status=models.Status.OK,
+                    data=result
+                ).model_dump(mode="json")
+            response = self._with_head(result)
+            writer.write(response.encode('utf-8', errors='ignore'))
+        elif method == 'GET':
+            query = self._parse_query_string(path)
+            path = urlparse(path).path
+            if path.strip('/').startswith('res'):
+                try:
+                    await self.get_file(path, writer, workspace_id=query.get('workspace_id'))
+                except Exception as e:
+                    logger.error(f'Error getting file: {e}')
+                    self._write_error(writer, str(e))
+            else:
+                query = self._parse_query_string(path)
+                request_id = uuid.uuid4().hex
+                payload = {
+                    "id": request_id,
+                    "method": method,
+                    "path": path,
+                    "query": query,
+                }
+                result = await self.process_request(payload)
+                if result is not None:
+                    result = models.ActionResponseModel(
+                        status=models.Status.OK,
+                        data=result
+                    ).model_dump(mode="json")
+                response = self._with_head(result)
+                writer.write(response.encode('utf-8', errors='ignore'))
 
-        parsed_body, files = await self._decode_body(headers, body)
-        request = models.ActionRequestModel(**parsed_body)
-        query = self._parse_query_string(path)
-        request_id = uuid.uuid4().hex
-        payload = {
-            "id": request_id,
-            "method": method,
-            "path": path,
-            "query": query,
-            "data": request.model_dump(mode="json"),
-            "files": files,
+    async def get_file(self, path, writer, workspace_id = None):
+        m = re.search(r'/res/(.+)$', path)
+        if not m:
+            raise FileNotFoundError(f'Invalid resource path: {path}')
+        rel_path = urllib.parse.unquote(m.group(1)).strip('/')
+        if not rel_path:
+            raise ValueError('Resource path is empty')
+        abs_path = get_resource_by_path(rel_path, workspace_id)
+        content_type = mimetypes.guess_type(abs_path)[0] or 'application/octet-stream'
+        try:
+            content_length = os.path.getsize(abs_path)
+        except OSError:
+            content_length = 0
+        headers = {
+            "Content-Type": content_type,
+            "Content-Length": str(content_length),
+            # иконки меняемся редко — браузер может кешировать их сутки
+            "Cache-Control": "public, max-age=86400",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Connection": "close",
         }
-        result = await self.process_request(payload)
-        if result is not None:
-            result = models.ActionResponseModel(
-                status=models.Status.OK,
-                data=result
-            ).model_dump(mode="json")
-        response = self._with_head(result)
-        writer.write(response.encode('utf-8', errors='ignore'))
+        writer.write(f"HTTP/1.1 200 OK\r\n{self._headers_str(headers)}\r\n\r\n".encode('utf-8'))
+        with open(abs_path, 'rb') as file:
+            while True:
+                chunk = file.read(self.CHUNK_SIZE)
+                if not chunk:
+                    break
+                writer.write(chunk)
+                await writer.drain()
+
+    def _write_error(self, writer, message: str, code: int = 404):
+        error_response = models.ActionResponseModel(
+            status=models.Status.ERROR,
+            message=message,
+        )
+        writer.write(
+            self._with_head(
+                data=error_response.model_dump(mode='json'),
+                code=code
+            ).encode('utf-8', errors='ignore')
+        )
+
 
     async def process_request(self, payload: dict) -> dict|None:
         future = self.loop.create_future()
@@ -211,6 +286,9 @@ class BrokerServer:
                 return {}, self._parse_multipart(body, boundary)
         return {}, {}
 
+    def _headers_str(self, headers: dict) -> str:
+        return "\r\n".join(f"{k}: {v}" for k, v in headers.items())
+
     def _with_head(self, data: dict, code: int = 200, extra_headers: dict = None) -> str:
         if isinstance(data, dict):
             data_bytes = json.dumps(data, ensure_ascii=False)
@@ -229,6 +307,6 @@ class BrokerServer:
         }
         if extra_headers:
             headers.update(extra_headers)
-        header_str = "\r\n".join(f"{k}: {v}" for k, v in headers.items())
+        header_str = self._headers_str(headers)
 
         return f"HTTP/1.1 {code} {HTTPStatus(code).phrase}\r\n{header_str}\r\n\r\n{data_bytes}"
