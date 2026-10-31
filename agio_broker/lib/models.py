@@ -17,6 +17,7 @@ class ActionRequestModel(BaseModel):
     kwargs: dict|None = None
     workspace_id: UUID|None = None
     project_id: UUID|None = None
+    keep_console: bool|None = None
 
 
 class ActionResponseModel(BaseModel):

@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 @router.add('action')
 def execute_action(request: dict, request_id: str) -> dict | None:
     action_data = request['data']
-    with_console = bool(action_data.get('with_console'))
+    logger.debug('Action requested: %s', action_data)
+    keep_console = bool(action_data.get('keep_console'))
     ws_id = get_workspace_id(action_data)
     if ws_id:
         # execute action as command with different workspace using project id
@@ -24,7 +25,7 @@ def execute_action(request: dict, request_id: str) -> dict | None:
             'action', action_data['action'],
             *args
         ]
-        logger.info(f'Launch cmd (console={with_console}): agio {" ".join(cmd)}')
+        logger.info(f'Launch cmd (console={keep_console}): agio {" ".join(cmd)}')
         logger.info(f'WS ID: {workspace_manager.launching_id}')
         envs = {'AGIO_ACTION_REQUEST_ID': request_id}
         with subscribe_manager(
@@ -36,9 +37,9 @@ def execute_action(request: dict, request_id: str) -> dict | None:
                 cmd,
                 envs=envs,
                 workspace=workspace_manager.launching_id,
-                use_custom_pipe=not with_console,
-                new_console=with_console,
-                keep_console=with_console
+                use_custom_pipe=not keep_console,
+                new_console=keep_console,
+                keep_console=keep_console
             )
         try:
             return json.loads(result)
