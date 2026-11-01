@@ -24,8 +24,13 @@ def execute_action(request: dict, request_id: str) -> dict | None:
         # forward console mode to the action: it must chain into this console, not open a new one
         kwargs['keep_console'] = keep_console
         args = args_helper.dict_to_args(kwargs)
+        # positional args must go BEFORE the option flags: the arg parser
+        # treats any non-dash token after a flag as its value,
+        # so "--keep-console C:\script.py" would eat the path as the flag value
+        action_args = [str(a) for a in (action_data.get('args') or [])]
         cmd = [
             'action', action_data['action'],
+            *action_args,
             *args
         ]
         logger.info(f'Launch cmd (console={keep_console}): agio {" ".join(cmd)}')
