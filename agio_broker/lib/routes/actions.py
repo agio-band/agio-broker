@@ -20,7 +20,10 @@ def execute_action(request: dict, request_id: str) -> dict | None:
         # execute action as command with different workspace using project id
         workspace_manager = AWorkspaceManager.create_from_id(ws_id)
         logger.info(f'Executing action with workspace "{ws_id}"')
-        args = args_helper.dict_to_args(action_data['kwargs'])
+        kwargs = action_data.get('kwargs') or {}
+        # forward console mode to the action: it must chain into this console, not open a new one
+        kwargs['keep_console'] = keep_console
+        args = args_helper.dict_to_args(kwargs)
         cmd = [
             'action', action_data['action'],
             *args
@@ -39,8 +42,13 @@ def execute_action(request: dict, request_id: str) -> dict | None:
                 workspace=workspace_manager.launching_id,
                 use_custom_pipe=not keep_console,
                 new_console=keep_console,
-                keep_console=keep_console
+                keep_console=keep_console,
+                # don't block the http response on the console lifetime
+                detached=keep_console,
             )
+        if keep_console:
+            # the command runs in its own detached console, no result to fetch
+            return {'pid': result.pid} if hasattr(result, 'pid') else None
         try:
             return json.loads(result)
         except (json.decoder.JSONDecodeError, TypeError):
